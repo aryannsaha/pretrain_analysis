@@ -1,0 +1,23 @@
+# Placeholder UMA data-task config.
+# Replace this with the FAIR-Chem generated task YAML and set src fields to
+# absolute paths so jobs can be launched from any working directory.
+
+train_dataset:
+  splits:
+    train:
+      src: /scratch/gpfs/ROSENGROUP/aryan/pretrain_analysis/data/processed/uma/train
+
+val_dataset:
+  splits:
+    val:
+      src: /scratch/gpfs/ROSENGROUP/aryan/pretrain_analysis/data/processed/uma/val
+
+# Keep the default energy:force:stress ratio near 20:2:1 unless you have a
+# reason to tune it for the target dataset.
+loss_coefficients:
+  energy_per_atom:
+    coefficient: 20
+  forces:
+    coefficient: 2
+  stress:
+    coefficient: 1

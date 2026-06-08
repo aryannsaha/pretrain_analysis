@@ -1,0 +1,37 @@
+# Placeholder metatrain/UPET options.
+# Fill in the model, dataset, and training sections according to the
+# metatrain docs and Fine-tuning Procedures.md.
+
+architecture:
+  name: experimental.pet
+  training:
+    finetune:
+      method: full
+      read_from: /scratch/gpfs/ROSENGROUP/aryan/pretrain_analysis/models/pretrained/<pet_or_upet_checkpoint>.ckpt
+
+training:
+  num_epochs: 100
+  batch_size: 16
+  outputs:
+    energy:
+      loss:
+        weight: 20
+    forces:
+      loss:
+        weight: 2
+    stress:
+      loss:
+        weight: 1
+
+data:
+  train:
+    path: /scratch/gpfs/ROSENGROUP/aryan/pretrain_analysis/data/processed/upet/train.xyz
+  val:
+    path: /scratch/gpfs/ROSENGROUP/aryan/pretrain_analysis/data/processed/upet/val.xyz
+
+wandb:
+  entity: <wandb_team_name>
+  project: <wandb_project_name>
+  name: <run_name>
+  resume: allow
+  id: <wandb_run_id>

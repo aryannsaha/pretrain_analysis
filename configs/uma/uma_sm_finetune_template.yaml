@@ -1,0 +1,33 @@
+# Placeholder UMA fine-tuning config.
+# Replace this with the full FAIR-Chem generated YAML, then keep the section
+# below aligned with Fine-tuning Procedures.md.
+
+job:
+  device_type: CUDA
+  scheduler:
+    mode: SLURM
+    ranks_per_node: 1
+    num_nodes: 1
+    slurm:
+      timeout_hr: 6
+      cpus_per_task: 6
+      mem_gb: 32
+      additional_parameters:
+        time: 0-12:00:00
+        gres: gpu:1
+        constraint: intel&gpu80
+        mail_user: "<NetID>@princeton.edu"
+        mail_type: begin,end,fail
+  debug: false
+  run_dir: runs/uma/<run_name>/
+  run_name: <run_name>
+  logger:
+    _target_: fairchem.core.common.logger.WandBSingletonLogger.init_wandb
+    _partial_: true
+    entity: <wandb_team_name>
+    project: <wandb_project_name>
+
+runner:
+  train_eval_unit:
+    model:
+      checkpoint_location: /scratch/gpfs/ROSENGROUP/aryan/pretrain_analysis/models/pretrained/<uma_checkpoint>.pt

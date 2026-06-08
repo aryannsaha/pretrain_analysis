@@ -1,8 +1,7 @@
-# Docs
+# Generated docs and local caches
 .cache/
-docs/reference/*
+site/
 *doctrees*
-/site
 
 # Python ignores
 __pycache__/
@@ -67,3 +66,31 @@ env/
 ENV/
 env.bak/
 venv.bak/
+
+# Fine-tuning artifacts
+data/**
+!data/
+!data/**/
+!data/**/README.md
+!data/**/.gitkeep
+models/**
+!models/
+!models/**/
+!models/**/README.md
+!models/**/.gitkeep
+runs/**
+!runs/
+!runs/**/
+!runs/**/README.md
+!runs/**/.gitkeep
+logs/**
+!logs/
+!logs/**/
+!logs/**/README.md
+!logs/**/.gitkeep
+*.ckpt
+*.pt
+*.pth
+*.traj
+*.xyz
+*.extxyz

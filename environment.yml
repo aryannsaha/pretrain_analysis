@@ -1,0 +1,6 @@
+name: pretrain_analysis_env
+channels:
+  - defaults
+dependencies:
+  - python=3.11
+  - pip

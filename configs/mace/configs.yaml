@@ -1,0 +1,27 @@
+# Placeholder MACE fine-tuning config.
+# Fill in dataset/model details before launching.
+
+name: <run_name>
+seed: 123
+work_dir: /scratch/gpfs/ROSENGROUP/aryan/pretrain_analysis/runs/mace/<run_name>
+
+train_file: /scratch/gpfs/ROSENGROUP/aryan/pretrain_analysis/data/processed/mace/train.xyz
+valid_file: /scratch/gpfs/ROSENGROUP/aryan/pretrain_analysis/data/processed/mace/val.xyz
+
+foundation_model: <foundation_model_name_or_path>
+compute_stress: true
+loss: stress
+
+energy_key: energy
+forces_key: forces
+stress_key: stress
+
+atomic_numbers: [1, 6, 7, 8]
+E0s: [-13.6, -1029.0, -1484.0, -2042.0]
+
+batch_size: 16
+max_num_epochs: 100
+
+wandb: true
+wandb_project: <wandb_project_name>
+wandb_entity: <wandb_team_name>

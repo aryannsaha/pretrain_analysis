@@ -1,1 +1,4 @@
-graft src/template
+include README.md
+graft configs
+graft scripts
+graft src/pretrain_analysis
