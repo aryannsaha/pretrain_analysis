@@ -1,0 +1,11 @@
+[2026-06-08 15:32:48][INFO] - This log is also available at '/scratch/gpfs/ROSENGROUP/aryan/pretrain_analysis/outputs/2026-06-08/15-32-47/train.log'.
+[2026-06-08 15:32:48][INFO] - Package version: 2026.2.2.dev59+gde8966067.d20260608
+[2026-06-08 15:32:48][INFO] - Package directory: /scratch/gpfs/ROSENGROUP/aryan/pretrain_analysis/metatrain/src/metatrain
+[2026-06-08 15:32:48][INFO] - Working directory: /scratch/gpfs/ROSENGROUP/aryan/pretrain_analysis
+[2026-06-08 15:32:48][INFO] - Executed command: mtt train configs/upet/options.yaml --output runs/upet/smoke_pet_omat_s_r2scan_d4.pt
+[2026-06-08 15:32:48][INFO] - Running training for 'pet' architecture
+[2026-06-08 15:32:48][INFO] - Random seed of this run is 42
+[2026-06-08 15:32:48][INFO] - Setting up training set
+[2026-06-08 15:32:52][ERROR] - If the error message below is unclear, please help us improve it by opening an issue at https://github.com/metatensor/metatrain/issues. When opening the issue, please include the full traceback log from '/scratch/gpfs/ROSENGROUP/aryan/pretrain_analysis/outputs/2026-06-08/15-32-47/error.log'. Thank you!
+
+not enough values to unpack (expected 6, got 3)

@@ -1,0 +1,63 @@
+[2026-06-08 15:43:01][INFO] - This log is also available at '/scratch/gpfs/ROSENGROUP/aryan/pretrain_analysis/outputs/2026-06-08/15-43-00/train.log'.
+[2026-06-08 15:43:01][INFO] - Package version: 2026.2.2.dev59+gde8966067.d20260608
+[2026-06-08 15:43:01][INFO] - Package directory: /scratch/gpfs/ROSENGROUP/aryan/pretrain_analysis/metatrain/src/metatrain
+[2026-06-08 15:43:01][INFO] - Working directory: /scratch/gpfs/ROSENGROUP/aryan/pretrain_analysis
+[2026-06-08 15:43:01][INFO] - Executed command: mtt train configs/upet/options.yaml --output runs/upet/smoke_pet_omat_s_r2scan_d4.pt
+[2026-06-08 15:43:01][INFO] - Running training for 'pet' architecture
+[2026-06-08 15:43:01][INFO] - Random seed of this run is 42
+[2026-06-08 15:43:01][INFO] - Setting up training set
+[2026-06-08 15:43:01][INFO] - Forces found in section 'moff_energy', we will use this gradient to train the model
+[2026-06-08 15:43:01][INFO] - Stress found in section 'moff_energy', we will use this gradient to train the model
+[2026-06-08 15:43:01][INFO] - Setting up validation set
+[2026-06-08 15:43:01][INFO] - Forces found in section 'moff_energy', we will use this gradient to train the model
+[2026-06-08 15:43:01][INFO] - Stress found in section 'moff_energy', we will use this gradient to train the model
+[2026-06-08 15:43:01][INFO] - Setting up test set
+[2026-06-08 15:43:01][WARNING] - /scratch/gpfs/ROSENGROUP/aryan/pretrain_analysis/metatrain/src/metatrain/cli/train.py:486: UserWarning: Requested dataset of zero length. This dataset will be empty.
+  train_dataset_new, test_dataset = _train_test_random_split(
+
+[2026-06-08 15:43:01][INFO] - Atomic types inferred from training and validation datasets
+[2026-06-08 15:43:01][INFO] - Model defined for atomic types: [1, 6, 8, 25, 28]
+[2026-06-08 15:43:01][INFO] - Training dataset:
+    Dataset containing 2 structures
+    Mean and standard deviation of targets:
+    - energy/r2scan_d4: 
+      - mean -185.3 eV
+      - std  0.6208 eV
+[2026-06-08 15:43:01][INFO] - Validation dataset:
+    Dataset containing 1 structures
+    Mean and standard deviation of targets:
+    - energy/r2scan_d4: 
+      - mean -196.8 eV
+      - std  0 eV
+[2026-06-08 15:43:01][INFO] - Test dataset:
+    Dataset containing 0 structures
+[2026-06-08 15:43:01][INFO] - Restart options: /scratch/gpfs/ROSENGROUP/aryan/pretrain_analysis/outputs/2026-06-08/15-43-00/options_restart.yaml
+[2026-06-08 15:43:01][INFO] - Setting up model
+[2026-06-08 15:43:01][INFO] - Starting finetuning from '/scratch/gpfs/ROSENGROUP/aryan/pretrain_analysis/models/pretrained/pet-omat-s-v1.0.0.ckpt'
+[2026-06-08 15:43:01][INFO] - Using best model from epoch 4
+[2026-06-08 15:43:04][INFO] - The model has 26.4M parameters (actual number: 26384412).
+[2026-06-08 15:43:04][INFO] - Calling trainer
+[2026-06-08 15:43:04][INFO] - Intermediate checkpoints (if available): /scratch/gpfs/ROSENGROUP/aryan/pretrain_analysis/outputs/2026-06-08/15-43-00
+[2026-06-08 15:43:04][INFO] - Training on device cpu with dtype torch.float32
+[2026-06-08 15:43:04][INFO] - Applied finetuning strategy: full
+[2026-06-08 15:43:04][INFO] - Number of trainable parameters: 26384412 [100.00% %]
+[2026-06-08 15:43:04][INFO] - Calculating composition weights
+[2026-06-08 15:43:05][INFO] - Calculating scaling weights
+[2026-06-08 15:43:05][INFO] - Setting up data loaders
+[2026-06-08 15:43:05][INFO] - Using the following loss functions:
+[2026-06-08 15:43:05][INFO] - energy:
+[2026-06-08 15:43:05][INFO] - {'type': 'mse', 'weight': 1.0, 'reduction': 'mean'}
+[2026-06-08 15:43:05][INFO] - With gradients:
+[2026-06-08 15:43:05][INFO] - 	energy::strain: {'type': 'mse', 'weight': 1.0, 'reduction': 'mean'}
+[2026-06-08 15:43:05][INFO] - 	energy::positions: {'type': 'mse', 'weight': 1.0, 'reduction': 'mean'}
+[2026-06-08 15:43:05][INFO] - non_conservative_forces:
+[2026-06-08 15:43:05][INFO] - {'type': 'mse', 'weight': 1.0, 'reduction': 'mean'}
+[2026-06-08 15:43:05][INFO] - non_conservative_stress:
+[2026-06-08 15:43:05][INFO] - {'type': 'mse', 'weight': 1.0, 'reduction': 'mean'}
+[2026-06-08 15:43:05][INFO] - energy/r2scan_d4:
+[2026-06-08 15:43:05][INFO] - {'type': 'mse', 'weight': 20.0, 'reduction': 'mean'}
+[2026-06-08 15:43:05][INFO] - With gradients:
+[2026-06-08 15:43:05][INFO] - 	energy/r2scan_d4::positions: {'type': 'mse', 'weight': 2.0, 'reduction': 'mean'}
+[2026-06-08 15:43:05][INFO] - 	energy/r2scan_d4::strain: {'type': 'mse', 'weight': 1.0, 'reduction': 'mean'}
+[2026-06-08 15:43:06][INFO] - Base learning rate: 1e-05
+[2026-06-08 15:43:06][INFO] - Starting training

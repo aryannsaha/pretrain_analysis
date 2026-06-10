@@ -1,0 +1,18 @@
+Traceback (most recent call last):
+  File "/scratch/gpfs/ROSENGROUP/aryan/pretrain_analysis/metatrain/src/metatrain/__main__.py", line 107, in main
+    train_model(**args.__dict__)
+  File "/scratch/gpfs/ROSENGROUP/aryan/pretrain_analysis/metatrain/src/metatrain/cli/train.py", line 735, in train_model
+    model = load_model(checkpoint_output)
+            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/scratch/gpfs/ROSENGROUP/aryan/pretrain_analysis/metatrain/src/metatrain/utils/io.py", line 186, in load_model
+    return model_from_checkpoint(checkpoint, context="export")
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/scratch/gpfs/ROSENGROUP/aryan/pretrain_analysis/metatrain/src/metatrain/utils/io.py", line 244, in model_from_checkpoint
+    return architecture.__model__.load_checkpoint(checkpoint, context=context)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/scratch/gpfs/ROSENGROUP/aryan/pretrain_analysis/metatrain/src/metatrain/pet/model.py", line 1248, in load_checkpoint
+    model.to(dtype).load_state_dict(model_state_dict)
+  File "/scratch/gpfs/ROSENGROUP/aryan/software/conda_envs/pretrain_analysis_env/lib/python3.11/site-packages/torch/nn/modules/module.py", line 2624, in load_state_dict
+    raise RuntimeError(
+RuntimeError: Error(s) in loading state_dict for PET:
+	Missing key(s) in state_dict: "node_heads.energy/r2scan_d4.0.0.weight", "node_heads.energy/r2scan_d4.0.0.bias", "node_heads.energy/r2scan_d4.0.2.weight", "node_heads.energy/r2scan_d4.0.2.bias", "edge_heads.energy/r2scan_d4.0.0.weight", "edge_heads.energy/r2scan_d4.0.0.bias", "edge_heads.energy/r2scan_d4.0.2.weight", "edge_heads.energy/r2scan_d4.0.2.bias", "node_last_layers.energy/r2scan_d4.0.energy/r2scan_d4___0.weight", "node_last_layers.energy/r2scan_d4.0.energy/r2scan_d4___0.bias", "edge_last_layers.energy/r2scan_d4.0.energy/r2scan_d4___0.weight", "edge_last_layers.energy/r2scan_d4.0.energy/r2scan_d4___0.bias", "additive_models.0.energy/r2scan_d4_composition_buffer", "scaler.energy/r2scan_d4_scaler_buffer", "scaler.energy/r2scan_d4_per_target_scaler_buffer", "scaler.energy/r2scan_d4_per_property_scaler_buffer". 

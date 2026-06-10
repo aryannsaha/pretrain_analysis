@@ -1,7 +1,7 @@
 # Placeholder MACE fine-tuning config.
 # Fill in dataset/model details before launching.
 
-name: <run_name>
+name: mace-
 seed: 123
 work_dir: /scratch/gpfs/ROSENGROUP/aryan/pretrain_analysis/runs/mace/<run_name>
 
@@ -20,8 +20,8 @@ atomic_numbers: [1, 6, 7, 8]
 E0s: [-13.6, -1029.0, -1484.0, -2042.0]
 
 batch_size: 16
-max_num_epochs: 100
+max_num_epochs: 20
 
 wandb: true
-wandb_project: <wandb_project_name>
-wandb_entity: <wandb_team_name>
+wandb_project: finetuning
+wandb_entity: rosengroup-general

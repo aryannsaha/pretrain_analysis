@@ -1,0 +1,119 @@
+#!/usr/bin/env python
+"""Edit the values below, then run this file from the repo root."""
+
+from datetime import date
+from pathlib import Path
+
+import numpy as np
+import yaml
+from ase.io import read, write
+
+
+ROOT = Path(__file__).resolve().parents[1]
+TRAIN_INPUT = ROOT / "data/processed/mof-off/r2scan-d4/train_10k.traj"
+VAL_INPUT = ROOT / "data/processed/mof-off/r2scan-d4/val_1k.traj"
+OUTPUT_DIR = ROOT / "data/processed/mof-off/r2scan-d4/upet_moff_off"
+PRETRAINED = ROOT / "models/pretrained/pet-omat-s-v1.0.0.ckpt"
+DATASET_NAME = "mof_off_r2scan_d4"
+MODEL_NAME = PRETRAINED.stem
+DATE_TAG = date.today().strftime("%Y%m%d")
+CONFIG_OUT = ROOT / "configs/upet" / f"{MODEL_NAME}_{DATASET_NAME}_{DATE_TAG}.yaml"
+RUN_DIR = ROOT / "runs/upet/upet_moff_off"
+WANDB_ENTITY = "rosengroup-general"
+WANDB_PROJECT = "finetuning"
+WANDB_ID = RUN_NAME = "upet_moff_off"
+DEVICE = "cuda"
+NUM_EPOCHS = 10
+BATCH_SIZE = 1
+LEARNING_RATE = 1.0e-5
+NUM_WORKERS = 0
+TARGET = "energy/r2scan_d4"
+ENERGY_KEY, FORCES_KEY, STRESS_KEY = "moff_energy", "moff_forces", "moff_stress"
+ENERGY_IN, FORCES_IN, STRESS_IN = ("energy", ENERGY_KEY), ("forces", FORCES_KEY), ("stress", STRESS_KEY)
+
+
+def frames(path):
+    path = path.expanduser().resolve()
+    files = sorted(path.rglob("*.traj")) + sorted(path.rglob("*.xyz")) + sorted(path.rglob("*.extxyz")) if path.is_dir() else [path]
+    return [atoms for file in files for atoms in read(file, ":")]
+
+
+def get(atoms, keys, result):
+    for key in keys:
+        if key in atoms.info:
+            return atoms.info[key]
+        if key in atoms.arrays:
+            return atoms.arrays[key]
+    if atoms.calc and result in atoms.calc.results:
+        return atoms.calc.results[result]
+    return atoms.get_potential_energy() if result == "energy" else atoms.get_forces() if result == "forces" else atoms.get_stress(voigt=False)
+
+
+def stress9(value):
+    value = np.asarray(value, dtype=float)
+    if value.shape == (6,):
+        xx, yy, zz, yz, xz, xy = value
+        value = np.array([[xx, xy, xz], [xy, yy, yz], [xz, yz, zz]])
+    return value.reshape(9)
+
+
+def write_split(src, dst):
+    out = []
+    for source in frames(src):
+        atoms = source.copy()
+        atoms.info[ENERGY_KEY] = float(np.asarray(get(source, ENERGY_IN, "energy")))
+        atoms.arrays[FORCES_KEY] = np.asarray(get(source, FORCES_IN, "forces"), dtype=float).reshape(len(atoms), 3)
+        atoms.info[STRESS_KEY] = stress9(get(source, STRESS_IN, "stress")).tolist()
+        atoms.calc = None
+        out.append(atoms)
+    if not out:
+        raise SystemExit(f"No ASE-readable structures found in {src}")
+    dst.parent.mkdir(parents=True, exist_ok=True)
+    write(dst, out)
+    first = read(dst, "0")
+    if ENERGY_KEY not in first.info or FORCES_KEY not in first.arrays or STRESS_KEY not in first.info:
+        raise SystemExit(f"{dst} is missing metatrain target keys")
+    if first.arrays[FORCES_KEY].shape != (len(first), 3) or np.asarray(first.info[STRESS_KEY]).size != 9:
+        raise SystemExit(f"{dst} has bad force/stress shapes")
+    return len(out)
+
+
+def latest_checkpoint():
+    ckpts = []
+    for root in (RUN_DIR, ROOT / "outputs"):
+        if not root.exists():
+            continue
+        for ckpt in root.rglob("*.ckpt"):
+            opts = ckpt.parent / "options_restart.yaml"
+            if root.name == "outputs" and (not opts.exists() or WANDB_ID not in opts.read_text()):
+                continue
+            ckpts.append(ckpt)
+    return max(ckpts, key=lambda path: path.stat().st_mtime) if ckpts else PRETRAINED
+
+
+def split(path):
+    path = str(path.resolve())
+    return {
+        "systems": {"read_from": path, "reader": "ase", "length_unit": "angstrom"},
+        "targets": {TARGET: {"quantity": "energy", "read_from": path, "reader": "ase", "key": ENERGY_KEY, "unit": "eV", "description": "MOF-OFF R2SCAN-D4 total energy", "forces": {"read_from": path, "reader": "ase", "key": FORCES_KEY}, "stress": {"read_from": path, "reader": "ase", "key": STRESS_KEY}}},
+    }
+
+
+train_xyz, val_xyz = OUTPUT_DIR / "train.extxyz", OUTPUT_DIR / "val.extxyz"
+RUN_DIR.mkdir(parents=True, exist_ok=True)
+n_train, n_val = write_split(TRAIN_INPUT, train_xyz), write_split(VAL_INPUT, val_xyz)
+read_from = latest_checkpoint()
+if not read_from.is_file():
+    raise SystemExit(f"Checkpoint not found: {read_from}")
+
+cfg = {
+    "seed": 42,
+    "device": DEVICE,
+    "wandb": {"entity": WANDB_ENTITY, "project": WANDB_PROJECT, "name": RUN_NAME, "resume": "allow", "id": WANDB_ID},
+    "architecture": {"name": "pet", "training": {"batch_size": BATCH_SIZE, "num_epochs": NUM_EPOCHS, "learning_rate": LEARNING_RATE, "log_interval": 1, "checkpoint_interval": 1, "num_workers": NUM_WORKERS, "finetune": {"method": "full", "read_from": str(read_from.resolve())}, "loss": {TARGET: {"type": "mse", "weight": 20.0, "reduction": "mean", "forces": {"type": "mse", "weight": 2.0, "reduction": "mean"}, "stress": {"type": "mse", "weight": 1.0, "reduction": "mean"}}}}},
+    "training_set": split(train_xyz),
+    "validation_set": split(val_xyz),
+}
+CONFIG_OUT.parent.mkdir(parents=True, exist_ok=True)
+CONFIG_OUT.write_text(yaml.safe_dump(cfg, sort_keys=False))
+print(f"Wrote {n_train} train / {n_val} val structures and {CONFIG_OUT}\nRun from repo root with: metatrain train {CONFIG_OUT}  # or: mtt train {CONFIG_OUT}")

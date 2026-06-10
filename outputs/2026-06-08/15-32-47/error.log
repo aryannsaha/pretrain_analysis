@@ -1,0 +1,22 @@
+Traceback (most recent call last):
+  File "/scratch/gpfs/ROSENGROUP/aryan/pretrain_analysis/metatrain/src/metatrain/__main__.py", line 107, in main
+    train_model(**args.__dict__)
+  File "/scratch/gpfs/ROSENGROUP/aryan/pretrain_analysis/metatrain/src/metatrain/cli/train.py", line 351, in train_model
+    dataset, target_info_dict_single, extra_data_info_dict_single = get_dataset(
+                                                                    ^^^^^^^^^^^^
+  File "/scratch/gpfs/ROSENGROUP/aryan/pretrain_analysis/metatrain/src/metatrain/utils/data/get_dataset.py", line 45, in get_dataset
+    systems = read_systems(
+              ^^^^^^^^^^^^^
+  File "/scratch/gpfs/ROSENGROUP/aryan/pretrain_analysis/metatrain/src/metatrain/utils/data/readers/readers.py", line 64, in read_systems
+    systems = reader_fn(filename)
+              ^^^^^^^^^^^^^^^^^^^
+  File "/scratch/gpfs/ROSENGROUP/aryan/pretrain_analysis/metatrain/src/metatrain/utils/data/readers/ase.py", line 61, in read_systems
+    ase_atoms = read(filename, ":")
+                ^^^^^^^^^^^^^^^^^^^
+  File "/scratch/gpfs/ROSENGROUP/aryan/pretrain_analysis/metatrain/src/metatrain/utils/data/readers/ase.py", line 50, in read
+    atoms.info["stress"] = voigt_6_to_full_3x3_stress(results["stress"])
+                           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/scratch/gpfs/ROSENGROUP/aryan/software/conda_envs/pretrain_analysis_env/lib/python3.11/site-packages/ase/stress.py", line 65, in voigt_6_to_full_3x3_stress
+    s1, s2, s3, s4, s5, s6 = np.transpose(stress_vector)
+    ^^^^^^^^^^^^^^^^^^^^^^
+ValueError: not enough values to unpack (expected 6, got 3)

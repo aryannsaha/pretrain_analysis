@@ -1,0 +1,206 @@
+dataset_name: omat
+elem_refs:
+- -1.2793331636691993e-13
+- -3.8367028386437543
+- 1.2892770184791402e-11
+- 9.729106409395172e-12
+- -1.2327916465437738e-11
+- -10.422963456961764
+- -9.517506258375743
+- -8.65348944220777
+- -7.635629300800657
+- -5.4938275785799915
+- 6.927791673660977e-13
+- -8.140561028812733
+- -9.55555375823289
+- -13.350931480453127
+- -12.611788422974755
+- -11.587373206721864
+- -7.726746146021977
+- -6.62677460310897
+- -1.4210854715202004e-14
+- 0.2955769458269657
+- 5.684341886080802e-14
+- -20.774107732224294
+- -18.68485066189675
+- -18.41056120951457
+- -18.065577085528258
+- -17.940756624453527
+- -14.880257955467364
+- -14.460567935022308
+- -12.997454026760753
+- -11.117565141125192
+- -10.934449571238346
+- -14.65310645238317
+- 7.105427357601002e-15
+- -14.179768845812342
+- -13.817656762841741
+- -13.251166714988539
+- -7.105427357601002e-15
+- 2.842170943040401e-14
+- 0.0
+- -29.10148169896693
+- -30.329187658749735
+- -30.67862926966777
+- -28.65667281071719
+- -27.180215295648683
+- -26.24617141448835
+- -21.402062710753977
+- -23.996664203286787
+- -21.156821489854675
+- -21.915383645745813
+- -25.057269411891852
+- -24.84109684836063
+- -26.276228515771045
+- -28.612585298878106
+- -24.861389807799974
+- -7.105427357601002e-15
+- 4.973799150320701e-14
+- -2.2648549702353193e-14
+- -38.25276208590064
+- -40.726256543168816
+- -39.86527362526826
+- -41.272185610417694
+- -1.509903313490213e-14
+- -45.324173412287024
+- -47.60173277145634
+- -50.42144520254617
+- -47.86825339477219
+- -46.08088797399697
+- -46.98927161438836
+- -44.80521759042287
+- -43.530341943239655
+- -44.010438388124875
+- -42.53226637758655
+- 0.0
+- 0.0
+- -53.22377682020651
+- -41.1392961980503
+- 0.0
+- -46.585687204986776
+- -50.66929557850684
+- -50.51047522448354
+- -49.64561531443842
+- 0.0
+- -57.56275563409618
+- -59.565924390682625
+- 0.0
+- 0.0
+- 0.0
+- 0.0
+- 0.0
+- 0.0
+- -86.43524261603457
+- 0.0
+- -88.49979088751356
+- 0.0
+- 0.0
+- 0.0
+- 0.0
+- 0.0
+- 0.0
+- 0.0
+normalizer_rmsd: 1.4822553825592995
+train_dataset:
+  splits:
+    train:
+      src: /scratch/gpfs/ROSENGROUP/aryan/pretrain_analysis/data/processed/mof-off/r2scan-d4/uma_efs/train
+  format: ase_db
+  transforms:
+    common_transform:
+      dataset_name: ${data.dataset_name}
+    stress_reshape_transform:
+      dataset_name: ${data.dataset_name}
+val_dataset:
+  splits:
+    val:
+      src: /scratch/gpfs/ROSENGROUP/aryan/pretrain_analysis/data/processed/mof-off/r2scan-d4/uma_efs/val
+  format: ase_db
+  transforms:
+    common_transform:
+      dataset_name: ${data.dataset_name}
+    stress_reshape_transform:
+      dataset_name: ${data.dataset_name}
+regress_stress: true
+pass_through_head_outputs: true
+heads:
+  efs:
+    module: fairchem.core.models.uma.escn_md.MLP_EFS_Head
+tasks_list:
+- _target_: fairchem.core.units.mlip_unit.mlip_unit.Task
+  name: energy
+  level: system
+  property: energy
+  loss_fn:
+    _target_: fairchem.core.modules.loss.DDPMTLoss
+    loss_fn:
+      _target_: fairchem.core.modules.loss.PerAtomMAELoss
+    coefficient: 20
+  out_spec:
+    dim:
+    - 1
+    dtype: float32
+  normalizer:
+    _target_: fairchem.core.modules.normalization.normalizer.Normalizer
+    mean: 0.0
+    rmsd: ${data.normalizer_rmsd}
+  element_references:
+    _target_: fairchem.core.modules.normalization.element_references.ElementReferences
+    element_references:
+      _target_: torch.DoubleTensor
+      _args_:
+      - ${data.elem_refs}
+  datasets:
+  - ${data.dataset_name}
+  metrics:
+  - mae
+  - per_atom_mae
+- _target_: fairchem.core.units.mlip_unit.mlip_unit.Task
+  name: forces
+  level: atom
+  property: forces
+  train_on_free_atoms: true
+  eval_on_free_atoms: true
+  loss_fn:
+    _target_: fairchem.core.modules.loss.DDPMTLoss
+    loss_fn:
+      _target_: fairchem.core.modules.loss.L2NormLoss
+    reduction: mean
+    coefficient: 2
+  out_spec:
+    dim:
+    - 3
+    dtype: float32
+  normalizer:
+    _target_: fairchem.core.modules.normalization.normalizer.Normalizer
+    mean: 0.0
+    rmsd: ${data.normalizer_rmsd}
+  datasets:
+  - ${data.dataset_name}
+  metrics:
+  - mae
+  - cosine_similarity
+  - magnitude_error
+- _target_: fairchem.core.units.mlip_unit.mlip_unit.Task
+  name: stress
+  level: system
+  property: stress
+  loss_fn:
+    _target_: fairchem.core.modules.loss.DDPMTLoss
+    loss_fn:
+      _target_: fairchem.core.modules.loss.MAELoss
+    reduction: mean
+    coefficient: 1
+  out_spec:
+    dim:
+    - 1
+    - 9
+    dtype: float32
+  normalizer:
+    _target_: fairchem.core.modules.normalization.normalizer.Normalizer
+    mean: 0.0
+    rmsd: ${data.normalizer_rmsd}
+  datasets:
+  - ${data.dataset_name}
+  metrics:
+  - mae

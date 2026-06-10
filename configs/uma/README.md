@@ -1,6 +1,20 @@
 # UMA / FAIR-Chem Configs
 
-Copy the FAIR-Chem generated files here after running its dataset/config generation step:
+The raw split files can live under `data/processed/...` as `.traj` files, but
+UMA fine-tuning should point at FAIR-Chem generated ASE-LMDB directories. Edit
+the constants in `scripts/1_UMA_prepare_uma_finetune_from_traj.py`, including
+`LOCAL_CHECKPOINT`, then run:
+
+```bash
+python scripts/1_UMA_prepare_uma_finetune_from_traj.py
+```
+
+That script creates `train/`, `val/`, a generated data-task YAML, and a runnable
+`uma_sm_finetune_template.yaml`, then copies the runnable YAMLs into
+`configs/uma/`.
+
+If preparing files manually, copy the FAIR-Chem generated files here after
+running its dataset/config generation step:
 
 - `uma_sm_finetune_template.yaml`
 - `data_task_energy_force_stress.yaml` or the generated `data/uma_conserving_data_task_energy_force_stress.yaml`

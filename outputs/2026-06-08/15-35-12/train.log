@@ -1,0 +1,69 @@
+[2026-06-08 15:35:12][INFO] - This log is also available at '/scratch/gpfs/ROSENGROUP/aryan/pretrain_analysis/outputs/2026-06-08/15-35-12/train.log'.
+[2026-06-08 15:35:12][INFO] - Package version: 2026.2.2.dev59+gde8966067.d20260608
+[2026-06-08 15:35:12][INFO] - Package directory: /scratch/gpfs/ROSENGROUP/aryan/pretrain_analysis/metatrain/src/metatrain
+[2026-06-08 15:35:12][INFO] - Working directory: /scratch/gpfs/ROSENGROUP/aryan/pretrain_analysis
+[2026-06-08 15:35:12][INFO] - Executed command: mtt train configs/upet/options.yaml --output runs/upet/smoke_pet_omat_s_r2scan_d4.pt
+[2026-06-08 15:35:12][INFO] - Running training for 'pet' architecture
+[2026-06-08 15:35:12][INFO] - Random seed of this run is 42
+[2026-06-08 15:35:12][INFO] - Setting up training set
+[2026-06-08 15:35:12][INFO] - Forces found in section 'moff_energy', we will use this gradient to train the model
+[2026-06-08 15:35:12][INFO] - Stress found in section 'moff_energy', we will use this gradient to train the model
+[2026-06-08 15:35:12][INFO] - Setting up validation set
+[2026-06-08 15:35:12][INFO] - Forces found in section 'moff_energy', we will use this gradient to train the model
+[2026-06-08 15:35:12][INFO] - Stress found in section 'moff_energy', we will use this gradient to train the model
+[2026-06-08 15:35:12][INFO] - Setting up test set
+[2026-06-08 15:35:12][WARNING] - /scratch/gpfs/ROSENGROUP/aryan/pretrain_analysis/metatrain/src/metatrain/cli/train.py:486: UserWarning: Requested dataset of zero length. This dataset will be empty.
+  train_dataset_new, test_dataset = _train_test_random_split(
+
+[2026-06-08 15:35:12][INFO] - Atomic types inferred from training and validation datasets
+[2026-06-08 15:35:12][INFO] - Model defined for atomic types: [1, 6, 7, 8, 16, 24, 25, 28, 58]
+[2026-06-08 15:35:12][INFO] - Training dataset:
+    Dataset containing 2 structures
+    Mean and standard deviation of targets:
+    - energy/r2scan_d4: 
+      - mean -1729 eV
+      - std  384.9 eV
+[2026-06-08 15:35:12][INFO] - Validation dataset:
+    Dataset containing 1 structures
+    Mean and standard deviation of targets:
+    - energy/r2scan_d4: 
+      - mean -471.4 eV
+      - std  0 eV
+[2026-06-08 15:35:12][INFO] - Test dataset:
+    Dataset containing 0 structures
+[2026-06-08 15:35:12][INFO] - Restart options: /scratch/gpfs/ROSENGROUP/aryan/pretrain_analysis/outputs/2026-06-08/15-35-12/options_restart.yaml
+[2026-06-08 15:35:12][INFO] - Setting up model
+[2026-06-08 15:35:12][INFO] - Starting finetuning from '/scratch/gpfs/ROSENGROUP/aryan/pretrain_analysis/models/pretrained/pet-omat-s-v1.0.0.ckpt'
+[2026-06-08 15:35:12][INFO] - Using best model from epoch 4
+[2026-06-08 15:36:42][INFO] - The model has 26.4M parameters (actual number: 26384412).
+[2026-06-08 15:36:42][INFO] - Calling trainer
+[2026-06-08 15:36:43][INFO] - Intermediate checkpoints (if available): /scratch/gpfs/ROSENGROUP/aryan/pretrain_analysis/outputs/2026-06-08/15-35-12
+[2026-06-08 15:36:43][INFO] - Training on device cpu with dtype torch.float32
+[2026-06-08 15:36:43][INFO] - Applied finetuning strategy: full
+[2026-06-08 15:36:43][INFO] - Number of trainable parameters: 26384412 [100.00% %]
+[2026-06-08 15:36:43][INFO] - Calculating composition weights
+[2026-06-08 15:36:43][INFO] - Calculating scaling weights
+[2026-06-08 15:36:53][INFO] - Setting up data loaders
+[2026-06-08 15:36:53][INFO] - Using the following loss functions:
+[2026-06-08 15:36:53][INFO] - energy:
+[2026-06-08 15:36:53][INFO] - {'type': 'mse', 'weight': 1.0, 'reduction': 'mean'}
+[2026-06-08 15:36:53][INFO] - With gradients:
+[2026-06-08 15:36:53][INFO] - 	energy::strain: {'type': 'mse', 'weight': 1.0, 'reduction': 'mean'}
+[2026-06-08 15:36:53][INFO] - 	energy::positions: {'type': 'mse', 'weight': 1.0, 'reduction': 'mean'}
+[2026-06-08 15:36:53][INFO] - non_conservative_forces:
+[2026-06-08 15:36:53][INFO] - {'type': 'mse', 'weight': 1.0, 'reduction': 'mean'}
+[2026-06-08 15:36:53][INFO] - non_conservative_stress:
+[2026-06-08 15:36:53][INFO] - {'type': 'mse', 'weight': 1.0, 'reduction': 'mean'}
+[2026-06-08 15:36:53][INFO] - energy/r2scan_d4:
+[2026-06-08 15:36:53][INFO] - {'type': 'mse', 'weight': 20.0, 'reduction': 'mean'}
+[2026-06-08 15:36:53][INFO] - With gradients:
+[2026-06-08 15:36:53][INFO] - 	energy/r2scan_d4::positions: {'type': 'mse', 'weight': 2.0, 'reduction': 'mean'}
+[2026-06-08 15:36:53][INFO] - 	energy/r2scan_d4::strain: {'type': 'mse', 'weight': 1.0, 'reduction': 'mean'}
+[2026-06-08 15:36:54][INFO] - Base learning rate: 1e-05
+[2026-06-08 15:36:54][INFO] - Starting training
+[2026-06-08 15:36:54][INFO] - Training finished!
+[2026-06-08 15:36:54][INFO] - Using best model from epoch 4
+[2026-06-08 15:36:58][ERROR] - If the error message below is unclear, please help us improve it by opening an issue at https://github.com/metatensor/metatrain/issues. When opening the issue, please include the full traceback log from '/scratch/gpfs/ROSENGROUP/aryan/pretrain_analysis/outputs/2026-06-08/15-35-12/error.log'. Thank you!
+
+Error(s) in loading state_dict for PET:
+	Missing key(s) in state_dict: "node_heads.energy/r2scan_d4.0.0.weight", "node_heads.energy/r2scan_d4.0.0.bias", "node_heads.energy/r2scan_d4.0.2.weight", "node_heads.energy/r2scan_d4.0.2.bias", "edge_heads.energy/r2scan_d4.0.0.weight", "edge_heads.energy/r2scan_d4.0.0.bias", "edge_heads.energy/r2scan_d4.0.2.weight", "edge_heads.energy/r2scan_d4.0.2.bias", "node_last_layers.energy/r2scan_d4.0.energy/r2scan_d4___0.weight", "node_last_layers.energy/r2scan_d4.0.energy/r2scan_d4___0.bias", "edge_last_layers.energy/r2scan_d4.0.energy/r2scan_d4___0.weight", "edge_last_layers.energy/r2scan_d4.0.energy/r2scan_d4___0.bias", "additive_models.0.energy/r2scan_d4_composition_buffer", "scaler.energy/r2scan_d4_scaler_buffer", "scaler.energy/r2scan_d4_per_target_scaler_buffer", "scaler.energy/r2scan_d4_per_property_scaler_buffer". 

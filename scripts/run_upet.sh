@@ -1,12 +1,35 @@
-#!/usr/bin/env bash
+#!/bin/bash
+#SBATCH --job-name=upet_moff
+#SBATCH --output=/scratch/gpfs/ROSENGROUP/aryan/pretrain_analysis/runs/upet/upet_moff_off/logs/%x_%j.out
+#SBATCH --error=/scratch/gpfs/ROSENGROUP/aryan/pretrain_analysis/runs/upet/upet_moff_off/logs/%x_%j.err
+#SBATCH --time=5:00:00
+#SBATCH --nodes=1
+#SBATCH --ntasks=1
+#SBATCH --cpus-per-task=8
+#SBATCH --mem=32G
+#SBATCH --gres=gpu:1
+#SBATCH --constraint=intel&gpu80
+
 set -euo pipefail
 
-CONFIG="${1:-configs/upet/options.yaml}"
+ROOT=/scratch/gpfs/ROSENGROUP/aryan/pretrain_analysis
+RUN_DIR="$ROOT/runs/upet/upet_moff_off"
+ENV_PY=/scratch/gpfs/ROSENGROUP/aryan/software/conda_envs/pretrain_analysis_env/bin/python
 
-if ! command -v mtt >/dev/null 2>&1; then
-  echo "mtt is not available in the active environment." >&2
-  echo "Install metatrain first, then rerun this script." >&2
-  exit 127
+module load proxy/default
+
+source /scratch/gpfs/ROSENGROUP/aryan/software/miniconda/etc/profile.d/conda.sh
+conda activate pretrain_analysis_env
+
+mkdir -p "$RUN_DIR/logs"
+
+cd "$ROOT"
+"$ENV_PY" scripts/1_UPET_prepare_upet_finetune_from_traj.py
+
+cd "$RUN_DIR"
+CONFIG=pet-omat-s-v1.0.0_mof_off_r2scan_d4_20260610.yaml
+if [[ ! -f "$CONFIG" ]]; then
+  echo "UPET config not found: $RUN_DIR/$CONFIG" >&2
+  exit 1
 fi
-
-mtt train "${CONFIG}"
+mtt train "$CONFIG" --restart auto -o upet_moff_off.pt
