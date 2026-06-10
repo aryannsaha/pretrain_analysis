@@ -18,8 +18,8 @@ job:
         mail_type: begin,end,fail
   debug: false
   run_dir: /scratch/gpfs/ROSENGROUP/aryan/pretrain_analysis/runs/uma/moff_off_test2
-  run_name: uma_moff_off
-  timestamp_id: uma-s-1p1_mof_off_r2scan_d4_efs_20260610_coefficient_test
+  run_name: uma_moff_off_test2_coefficient_test
+  timestamp_id: uma-s-1p1_mof_off_r2scan_d4_efs_20260610
   runner_state_path: null
   logger:
     _target_: fairchem.core.common.logger.WandBSingletonLogger.init_wandb
@@ -27,12 +27,12 @@ job:
     entity: rosengroup-general
     project: finetuning
 max_neighbors: 300
-epochs: 20
+epochs: 10
 steps: null
-batch_size: 2
+batch_size: 4
 lr: 4e-4
 weight_decay: 1e-3
-evaluate_every_n_steps: 100
+evaluate_every_n_steps: 2000
 checkpoint_every_n_steps: 1000
 train_dataset:
   _target_: fairchem.core.datasets.mt_concat_dataset.create_concat_dataset

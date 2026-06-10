@@ -14,6 +14,13 @@ import shutil, subprocess, sys, tempfile
 
 import yaml
 
+"""
+specify: new directory name
+run_id automatically specified
+
+
+"""
+
 
 ROOT = Path(__file__).resolve().parents[1]
 FAIRCHEM = ROOT / "fairchem"
@@ -28,15 +35,17 @@ NUM_WORKERS = 8
 BASE_MODEL = "uma-s-1p1"
 LOCAL_CHECKPOINT = ROOT / "models/pretrained/uma-s-1p1.pt"
 RUN_DIR = ROOT / "runs/uma/moff_off_test2"
-RUN_NAME = "uma_moff_off"
+RUN_NAME = "uma_moff_off_test2_coefficient_test"
 MAIL_USER = "as7959@princeton.edu"
 WANDB_ENTITY = "rosengroup-general"
 WANDB_PROJECT = "finetuning"
 
 DATE_TAG = date.today().strftime("%Y%m%d")
-TEMPLATE_NAME = f"{BASE_MODEL}_{FINETUNE_DATASET}_{REGRESSION_TASKS}_{DATE_TAG}.yaml"
+TEMPLATE = f"{BASE_MODEL}_{FINETUNE_DATASET}_{REGRESSION_TASKS}_{DATE_TAG}"
+
+TEMPLATE_NAME = f"{TEMPLATE}.yaml"
 RUN_ID = Path(TEMPLATE_NAME).stem
-DATA_CONFIG_STEM = f"{BASE_MODEL}_{FINETUNE_DATASET}_{REGRESSION_TASKS}_{DATE_TAG}_data"
+DATA_CONFIG_STEM = f"{TEMPLATE}_data"
 DATA_CONFIG_NAME = f"{DATA_CONFIG_STEM}.yaml"
 
 

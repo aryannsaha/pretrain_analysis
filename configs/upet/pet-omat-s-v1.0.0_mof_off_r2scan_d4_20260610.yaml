@@ -3,13 +3,12 @@ device: cuda
 wandb:
   entity: rosengroup-general
   project: finetuning
-  name: upet_moff_off
-  resume: allow
-  id: upet_moff_off
+  name: upet_moff_off_test10
+  resume: never
 architecture:
   name: pet
   training:
-    batch_size: 1
+    batch_size: 8
     num_epochs: 10
     learning_rate: 1.0e-05
     log_interval: 1
@@ -33,43 +32,43 @@ architecture:
           reduction: mean
 training_set:
   systems:
-    read_from: /scratch/gpfs/ROSENGROUP/aryan/pretrain_analysis/data/processed/mof-off/r2scan-d4/upet_moff_off/train.extxyz
+    read_from: /scratch/gpfs/ROSENGROUP/aryan/pretrain_analysis/data/processed/mof-off/r2scan-d4/upet_moff_off_test/train.extxyz
     reader: ase
     length_unit: angstrom
   targets:
     energy/r2scan_d4:
       quantity: energy
-      read_from: /scratch/gpfs/ROSENGROUP/aryan/pretrain_analysis/data/processed/mof-off/r2scan-d4/upet_moff_off/train.extxyz
+      read_from: /scratch/gpfs/ROSENGROUP/aryan/pretrain_analysis/data/processed/mof-off/r2scan-d4/upet_moff_off_test/train.extxyz
       reader: ase
       key: moff_energy
       unit: eV
       description: MOF-OFF R2SCAN-D4 total energy
       forces:
-        read_from: /scratch/gpfs/ROSENGROUP/aryan/pretrain_analysis/data/processed/mof-off/r2scan-d4/upet_moff_off/train.extxyz
+        read_from: /scratch/gpfs/ROSENGROUP/aryan/pretrain_analysis/data/processed/mof-off/r2scan-d4/upet_moff_off_test/train.extxyz
         reader: ase
         key: moff_forces
       stress:
-        read_from: /scratch/gpfs/ROSENGROUP/aryan/pretrain_analysis/data/processed/mof-off/r2scan-d4/upet_moff_off/train.extxyz
+        read_from: /scratch/gpfs/ROSENGROUP/aryan/pretrain_analysis/data/processed/mof-off/r2scan-d4/upet_moff_off_test/train.extxyz
         reader: ase
         key: moff_stress
 validation_set:
   systems:
-    read_from: /scratch/gpfs/ROSENGROUP/aryan/pretrain_analysis/data/processed/mof-off/r2scan-d4/upet_moff_off/val.extxyz
+    read_from: /scratch/gpfs/ROSENGROUP/aryan/pretrain_analysis/data/processed/mof-off/r2scan-d4/upet_moff_off_test/val.extxyz
     reader: ase
     length_unit: angstrom
   targets:
     energy/r2scan_d4:
       quantity: energy
-      read_from: /scratch/gpfs/ROSENGROUP/aryan/pretrain_analysis/data/processed/mof-off/r2scan-d4/upet_moff_off/val.extxyz
+      read_from: /scratch/gpfs/ROSENGROUP/aryan/pretrain_analysis/data/processed/mof-off/r2scan-d4/upet_moff_off_test/val.extxyz
       reader: ase
       key: moff_energy
       unit: eV
       description: MOF-OFF R2SCAN-D4 total energy
       forces:
-        read_from: /scratch/gpfs/ROSENGROUP/aryan/pretrain_analysis/data/processed/mof-off/r2scan-d4/upet_moff_off/val.extxyz
+        read_from: /scratch/gpfs/ROSENGROUP/aryan/pretrain_analysis/data/processed/mof-off/r2scan-d4/upet_moff_off_test/val.extxyz
         reader: ase
         key: moff_forces
       stress:
-        read_from: /scratch/gpfs/ROSENGROUP/aryan/pretrain_analysis/data/processed/mof-off/r2scan-d4/upet_moff_off/val.extxyz
+        read_from: /scratch/gpfs/ROSENGROUP/aryan/pretrain_analysis/data/processed/mof-off/r2scan-d4/upet_moff_off_test/val.extxyz
         reader: ase
         key: moff_stress
