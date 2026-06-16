@@ -11,37 +11,55 @@ import yaml
 from ase.io import read, write
 
 
+def slurm_gpus_per_node(gres):
+    for item in str(gres).split(","):
+        fields = item.strip().split(":")
+        if fields and fields[0] == "gpu":
+            if len(fields) == 1:
+                return 1
+            try:
+                return int(fields[-1])
+            except ValueError:
+                return 1
+    return 0
+
+
 ROOT = Path(__file__).resolve().parents[1]
-TRAIN_INPUT = ROOT / "data/processed/mof-off/r2scan-d4/train_10k.traj"
-VAL_INPUT = ROOT / "data/processed/mof-off/r2scan-d4/val_1k.traj"
-OUTPUT_DIR = ROOT / "data/processed/mof-off/r2scan-d4/mace_moff_off_test"
+DATA_CONFIG_NAME = "mace_matpes_test_half"
+
+TRAIN_INPUT = ROOT / "data/processed/matpes/r2scan/half_train.traj"
+VAL_INPUT = ROOT / "data/processed/matpes/r2scan/half_val.traj"
+OUTPUT_DIR = ROOT / "data/processed/matpes/r2scan" / DATA_CONFIG_NAME
 PRETRAINED = ROOT / "models/pretrained/mace-omat-0-medium.model"
-DATASET_NAME = "mof_off_r2scan_d4"
+DATASET_NAME = "matpes_r2scan_d4"
 MODEL_NAME = PRETRAINED.stem
-RUN_NAME = "mace_moff_off_TEST"
+RUN_NAME = "test_2_half"
 WANDB_NAME = os.environ.get("WANDB_NAME", RUN_NAME)
-RUN_DIR = ROOT / "runs/mace" / RUN_NAME
+RUN_DIR = ROOT / "runs/mace" / DATA_CONFIG_NAME / RUN_NAME
 CONFIG_OUT = RUN_DIR / f"{MODEL_NAME}_{DATASET_NAME}_{date.today():%Y%m%d}.yaml"
 WANDB_ENTITY = "rosengroup-general"
 WANDB_PROJECT = "finetuning"
-MAX_NUM_EPOCHS = 10
+MAX_NUM_EPOCHS = 30
 BATCH_SIZE = 8
 LR = 1.0e-3
 DEVICE = "cuda"
 ENERGY_KEY, FORCES_KEY, STRESS_KEY = "mace_energy", "mace_forces", "mace_stress"
 ENERGY_IN, FORCES_IN, STRESS_IN = ("energy", ENERGY_KEY), ("forces", FORCES_KEY), ("stress", STRESS_KEY)
 SLURM_JOB_NAME = "mace_moff"
-SLURM_TIME = "6:00:00"
+SLURM_TIME = "3:00:00"
 SLURM_NODES = 1
-SLURM_NTASKS = 1
 SLURM_CPUS_PER_TASK = 8
 SLURM_MEM = "32G"
-SLURM_GRES = "gpu:1"
+SLURM_GRES = "gpu:4"
+SLURM_GPUS_PER_NODE = slurm_gpus_per_node(SLURM_GRES)
+SLURM_NTASKS_PER_NODE = SLURM_GPUS_PER_NODE if DEVICE == "cuda" and SLURM_GPUS_PER_NODE else 1
+SLURM_NTASKS = SLURM_NODES * SLURM_NTASKS_PER_NODE
 SLURM_CONSTRAINT = "intel&gpu80"
 CONDA_ENV = "pretrain_analysis_env_mace"
 CONDA_SH = Path("/scratch/gpfs/ROSENGROUP/aryan/software/miniconda/etc/profile.d/conda.sh")
 SUBMIT_SCRIPT = RUN_DIR / "submit_mace.sh"
-DEFAULT_E0S = {1: -27.65549603, 5: -89.23771986, 6: -20.04349189, 7: -73.2266828, 8: -11.96387168, 9: -12.5632481, 11: -7.11092969, 12: -8.3717352, 13: -6.85897879, 14: -17.78753248, 15: -766.57107979, 16: -260.19445295, 17: -24.89623942, 19: -12.00265242, 21: -22.96878401, 22: -38.89004647, 23: -14.17689136, 24: -29.79709436, 25: -421.58229264, 26: -28.95919981, 27: -13.38079667, 28: -12.10812657, 29: -11.0266493, 30: -18.06215903, 31: -46.38896315, 33: -59.40125422, 34: -923.00144496, 35: -53.40723705, 39: -40.76883293, 40: -45.62578474, 41: -24.8398042, 42: -26.30801155, 43: -52.34648696, 44: -51.21775841, 45: -24.44165061, 46: -23.1264227, 47: -86.19860042, 48: -40.48605081, 49: -22.70338887, 50: -49.70920903, 51: -51.72793151, 52: -76.71399767, 53: -98.70226559, 57: -119.30846814, 58: -30.95223674, 59: -188.51867757, 60: -132.63495916, 62: -147.21732286, 63: -79.53287722, 64: -82.37644592, 65: -117.18450916, 66: -151.71573468, 67: -74.66460718, 68: -72.18001754, 69: -70.93001583, 70: -35.62976638, 71: -114.34368382, 74: -51.71014625, 75: -210.69676258, 77: -52.65615428, 78: -51.74737156, 79: -101.61334916, 80: -148.50975734, 82: -56.44531344, 83: -117.31067972, 90: -73.6452058, 92: -160.38560063, 93: -667.12743208}
+DEFAULT_E0S = "estimated"
+# DEFAULT_E0S = {1: -27.65549603, 5: -89.23771986, 6: -20.04349189, 7: -73.2266828, 8: -11.96387168, 9: -12.5632481, 11: -7.11092969, 12: -8.3717352, 13: -6.85897879, 14: -17.78753248, 15: -766.57107979, 16: -260.19445295, 17: -24.89623942, 19: -12.00265242, 21: -22.96878401, 22: -38.89004647, 23: -14.17689136, 24: -29.79709436, 25: -421.58229264, 26: -28.95919981, 27: -13.38079667, 28: -12.10812657, 29: -11.0266493, 30: -18.06215903, 31: -46.38896315, 33: -59.40125422, 34: -923.00144496, 35: -53.40723705, 39: -40.76883293, 40: -45.62578474, 41: -24.8398042, 42: -26.30801155, 43: -52.34648696, 44: -51.21775841, 45: -24.44165061, 46: -23.1264227, 47: -86.19860042, 48: -40.48605081, 49: -22.70338887, 50: -49.70920903, 51: -51.72793151, 52: -76.71399767, 53: -98.70226559, 57: -119.30846814, 58: -30.95223674, 59: -188.51867757, 60: -132.63495916, 62: -147.21732286, 63: -79.53287722, 64: -82.37644592, 65: -117.18450916, 66: -151.71573468, 67: -74.66460718, 68: -72.18001754, 69: -70.93001583, 70: -35.62976638, 71: -114.34368382, 74: -51.71014625, 75: -210.69676258, 77: -52.65615428, 78: -51.74737156, 79: -101.61334916, 80: -148.50975734, 82: -56.44531344, 83: -117.31067972, 90: -73.6452058, 92: -160.38560063, 93: -667.12743208}
 
 
 def q(value):
@@ -116,6 +134,7 @@ def write_slurm_script(config_path: Path) -> Path:
 #SBATCH --time={SLURM_TIME}
 #SBATCH --nodes={SLURM_NODES}
 #SBATCH --ntasks={SLURM_NTASKS}
+#SBATCH --ntasks-per-node={SLURM_NTASKS_PER_NODE}
 #SBATCH --cpus-per-task={SLURM_CPUS_PER_TASK}
 #SBATCH --mem={SLURM_MEM}
 #SBATCH --gres={SLURM_GRES}
@@ -149,7 +168,7 @@ export WANDB_IGNORE_GLOBS="${{WANDB_IGNORE_GLOBS:-config.yaml,requirements.txt,w
 mkdir -p "$MPLCONFIGDIR" "$WANDB_DIR" "$WANDB_CACHE_DIR" "$WANDB_CONFIG_DIR"
 
 cd "$RUN_DIR"
-mace_run_train --config="$CONFIG"
+srun --ntasks={SLURM_NTASKS} mace_run_train --config="$CONFIG" --distributed --launcher=slurm
 """
     SUBMIT_SCRIPT.write_text(content)
     SUBMIT_SCRIPT.chmod(0o755)
@@ -161,9 +180,15 @@ RUN_DIR.mkdir(parents=True, exist_ok=True)
 n_train, train_zs = write_split(TRAIN_INPUT, train_xyz)
 n_val, val_zs = write_split(VAL_INPUT, val_xyz)
 atomic_numbers = sorted(train_zs | val_zs)
-missing = [z for z in atomic_numbers if z not in DEFAULT_E0S]
-if missing:
-    raise SystemExit(f"Missing E0s for atomic numbers: {missing}")
+if isinstance(DEFAULT_E0S, dict):
+    missing = [z for z in atomic_numbers if z not in DEFAULT_E0S]
+    if missing:
+        raise SystemExit(f"Missing E0s for atomic numbers: {missing}")
+    e0s = {z: DEFAULT_E0S[z] for z in atomic_numbers}
+elif DEFAULT_E0S in {"foundation", "estimated"}:
+    e0s = DEFAULT_E0S
+else:
+    raise SystemExit("DEFAULT_E0S must be a dict, 'foundation', or 'estimated'")
 foundation_model = latest_model()
 if not foundation_model.is_file():
     raise SystemExit(f"MACE model not found: {foundation_model}")
@@ -175,7 +200,7 @@ cfg = {
     "train_file": str(train_xyz.resolve()),
     "valid_file": str(val_xyz.resolve()),
     "atomic_numbers": str(atomic_numbers),
-    "E0s": {z: DEFAULT_E0S[z] for z in atomic_numbers},
+    "E0s": e0s,
     "energy_key": ENERGY_KEY,
     "forces_key": FORCES_KEY,
     "stress_key": STRESS_KEY,

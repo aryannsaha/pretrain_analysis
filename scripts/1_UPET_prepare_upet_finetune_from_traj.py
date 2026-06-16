@@ -11,6 +11,19 @@ import yaml
 from ase.io import read, write
 
 
+def slurm_gpus_per_node(gres):
+    for item in str(gres).split(","):
+        fields = item.strip().split(":")
+        if fields and fields[0] == "gpu":
+            if len(fields) == 1:
+                return 1
+            try:
+                return int(fields[-1])
+            except ValueError:
+                return 1
+    return 0
+
+
 ROOT = Path(__file__).resolve().parents[1]
 TRAIN_INPUT = ROOT / "data/processed/mof-off/r2scan-d4/train_10k.traj"
 VAL_INPUT = ROOT / "data/processed/mof-off/r2scan-d4/val_1k.traj"
@@ -38,10 +51,12 @@ ENERGY_IN, FORCES_IN, STRESS_IN = ("energy", ENERGY_KEY), ("forces", FORCES_KEY)
 SLURM_JOB_NAME = "upet_moff"
 SLURM_TIME = "6:00:00"
 SLURM_NODES = 1
-SLURM_NTASKS = 1
 SLURM_CPUS_PER_TASK = 8
 SLURM_MEM = "32G"
 SLURM_GRES = "gpu:1"
+SLURM_GPUS_PER_NODE = slurm_gpus_per_node(SLURM_GRES)
+SLURM_NTASKS_PER_NODE = SLURM_GPUS_PER_NODE if DEVICE == "cuda" and SLURM_GPUS_PER_NODE else 1
+SLURM_NTASKS = SLURM_NODES * SLURM_NTASKS_PER_NODE
 SLURM_CONSTRAINT = "intel&gpu80"
 CONDA_ENV = "pretrain_analysis_env"
 CONDA_SH = Path("/scratch/gpfs/ROSENGROUP/aryan/software/miniconda/etc/profile.d/conda.sh")
@@ -135,6 +150,7 @@ def write_slurm_script(config_path: Path) -> Path:
 #SBATCH --time={SLURM_TIME}
 #SBATCH --nodes={SLURM_NODES}
 #SBATCH --ntasks={SLURM_NTASKS}
+#SBATCH --ntasks-per-node={SLURM_NTASKS_PER_NODE}
 #SBATCH --cpus-per-task={SLURM_CPUS_PER_TASK}
 #SBATCH --mem={SLURM_MEM}
 #SBATCH --gres={SLURM_GRES}
@@ -167,7 +183,7 @@ export WANDB_IGNORE_GLOBS="${{WANDB_IGNORE_GLOBS:-config.yaml,requirements.txt,w
 mkdir -p "$WANDB_DIR" "$WANDB_CACHE_DIR" "$WANDB_CONFIG_DIR"
 
 cd "$RUN_DIR"
-mtt train "$CONFIG_FILE" --restart auto -o "$OUTPUT_MODEL"
+srun --ntasks={SLURM_NTASKS} mtt train "$CONFIG_FILE" --restart auto -o "$OUTPUT_MODEL"
 """
     SUBMIT_SCRIPT.write_text(content)
     SUBMIT_SCRIPT.chmod(0o755)
@@ -189,7 +205,7 @@ cfg = {
     "seed": 42,
     "device": DEVICE,
     "wandb": wandb_cfg,
-    "architecture": {"name": "pet", "training": {"batch_size": BATCH_SIZE, "num_epochs": NUM_EPOCHS, "learning_rate": LEARNING_RATE, "log_interval": 1, "checkpoint_interval": 1, "num_workers": NUM_WORKERS, "finetune": {"method": "full", "read_from": str(read_from.resolve())}, "loss": {TARGET: {"type": "mse", "weight": 20.0, "reduction": "mean", "forces": {"type": "mse", "weight": 2.0, "reduction": "mean"}, "stress": {"type": "mse", "weight": 1.0, "reduction": "mean"}}}}},
+    "architecture": {"name": "pet", "training": {"batch_size": BATCH_SIZE, "num_epochs": NUM_EPOCHS, "learning_rate": LEARNING_RATE, "log_interval": 1, "checkpoint_interval": 1, "num_workers": NUM_WORKERS, "distributed": SLURM_NTASKS > 1, "finetune": {"method": "full", "read_from": str(read_from.resolve())}, "loss": {TARGET: {"type": "mse", "weight": 20.0, "reduction": "mean", "forces": {"type": "mse", "weight": 2.0, "reduction": "mean"}, "stress": {"type": "mse", "weight": 1.0, "reduction": "mean"}}}}},
     "training_set": split(train_xyz),
     "validation_set": split(val_xyz),
 }

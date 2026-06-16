@@ -91,6 +91,7 @@ logs/**
 *.ckpt
 *.pt
 *.pth
+*.npy
 *.traj
 *.xyz
 *.extxyz

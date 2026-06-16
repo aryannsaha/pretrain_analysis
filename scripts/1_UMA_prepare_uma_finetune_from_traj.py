@@ -22,6 +22,19 @@ run_id automatically specified
 """
 
 
+def slurm_gpus_per_node(gres):
+    for item in str(gres).split(","):
+        fields = item.strip().split(":")
+        if fields and fields[0] == "gpu":
+            if len(fields) == 1:
+                return 1
+            try:
+                return int(fields[-1])
+            except ValueError:
+                return 1
+    return 0
+
+
 ROOT = Path(__file__).resolve().parents[1]
 FAIRCHEM = ROOT / "fairchem"
 TRAIN_INPUT = ROOT / "data/processed/mof-off/r2scan-d4/train_10k.traj"  # file or dir
@@ -39,6 +52,11 @@ RUN_NAME = "uma_moff_off_test2_coefficient_test"
 MAIL_USER = "as7959@princeton.edu"
 WANDB_ENTITY = "rosengroup-general"
 WANDB_PROJECT = "finetuning"
+DEVICE_TYPE = "CUDA"
+SLURM_GRES = "gpu:1"
+SLURM_GPUS_PER_NODE = slurm_gpus_per_node(SLURM_GRES)
+SLURM_RANKS_PER_NODE = SLURM_GPUS_PER_NODE if DEVICE_TYPE == "CUDA" and SLURM_GPUS_PER_NODE else 1
+SLURM_NUM_NODES = 1
 
 DATE_TAG = date.today().strftime("%Y%m%d")
 TEMPLATE = f"{BASE_MODEL}_{FINETUNE_DATASET}_{REGRESSION_TASKS}_{DATE_TAG}"
@@ -99,17 +117,17 @@ if not LOCAL_CHECKPOINT.is_file():
     raise SystemExit(f"Local UMA checkpoint not found: {LOCAL_CHECKPOINT}")
 cfg = yaml.safe_load(template.read_text())
 cfg["job"] = {
-    "device_type": "CUDA",
+    "device_type": DEVICE_TYPE,
     "scheduler": {
         "mode": "SLURM",
-        "ranks_per_node": 1,
-        "num_nodes": 1,
+        "ranks_per_node": SLURM_RANKS_PER_NODE,
+        "num_nodes": SLURM_NUM_NODES,
         "slurm": {
             "timeout_hr": 12,
             "cpus_per_task": 6,
             "mem_gb": 32,
             "additional_parameters": {
-                "gres": "gpu:1",
+                "gres": SLURM_GRES,
                 "constraint": "intel&gpu80",
                 "mail_user": MAIL_USER,
                 "mail_type": "begin,end,fail",
