@@ -322,8 +322,15 @@ RANK_RAMP = {"top10": "#86b6ef", "top5": "#2a78d6", "top2": "#104281"}
 REFERENCE = {"mof_off_r2scan": "#eb6834", "omat_bg_global": "#75746f"}
 
 
-def plot_presence_by_rank_depth(analysis, out, geometry, min_presence=0.03, top_n=30):
-    """Element presence across OMAT24, MOF-off, and tightening neighbor windows."""
+def plot_presence_by_rank_depth(analysis, out, geometry, detail_limit=10.0):
+    """Element presence across OMAT24, MOF-off, and tightening neighbor windows.
+
+    Every element with non-zero presence in at least one of the five populations
+    is plotted; only elements absent from all five are dropped.  Because most
+    elements peak in the low single-digit percents, a second panel repeats the
+    same bars on a 0-`detail_limit`% scale so they are legible - the left panel
+    is the honest full range, the right is a zoom, not a different metric.
+    """
     rows = read_csv(analysis / "element_presence_and_abundance.csv")
     series = [
         ("omat_bg_global", REFERENCE["omat_bg_global"], "OMAT24 (uniform random)"),
@@ -344,33 +351,42 @@ def plot_presence_by_rank_depth(analysis, out, geometry, min_presence=0.03, top_
     # exactly the elements that are common among neighbors but absent from
     # MOF-off (Li, Rb, K, Na, B, Be, Cs) - which are the informative rows -
     # while keeping lanthanides that are ~1% of MOF-off and ~0% of everything else.
-    kept = [r for r in rows if peak(r) >= min_presence * 100]
+    kept = [r for r in rows if peak(r) > 0]
     kept.sort(key=lambda r: -peak(r))
-    kept = kept[:top_n]
     symbols = [r["symbol"] for r in kept]
     y = np.arange(len(kept))
 
-    fig, ax = plt.subplots(figsize=(10.5, max(6.5, 0.46 * len(kept))))
+    fig, axes = plt.subplots(
+        1, 2, figsize=(14, max(7.0, 0.30 * len(kept))),
+        sharey=True, gridspec_kw={"width_ratios": [1.35, 1.0], "wspace": 0.04},
+    )
     height = 0.16
-    for i, (population, color, label) in enumerate(series):
-        offset = ((len(series) - 1) / 2 - i) * height
-        ax.barh(y + offset, [value(r, population) for r in kept], height=height * 0.92,
-                color=color, label=label, zorder=3)
+    for ax, limit in zip(axes, (100.0, detail_limit)):
+        for i, (population, color, label) in enumerate(series):
+            offset = ((len(series) - 1) / 2 - i) * height
+            ax.barh(y + offset, [value(r, population) for r in kept], height=height * 0.92,
+                    color=color, label=label if limit == 100.0 else None, zorder=3)
+        ax.set_xlim(0, limit)
+        ax.xaxis.grid(True)
+        ax.yaxis.grid(False)
 
-    ax.set_yticks(y)
-    ax.set_yticklabels(symbols, fontsize=10)
-    ax.invert_yaxis()
-    ax.set_xlim(0, 100)
-    style_axes(ax, xlabel="percentage of structures containing the element (%)",
-               title=f"Element presence as the neighbor window tightens ({geometry})")
-    ax.xaxis.grid(True)
-    ax.yaxis.grid(False)
-    ax.legend(frameon=False, fontsize=9, labelcolor=TEXT_SECONDARY, loc="lower right")
-    fig.text(0.01, -0.015,
+    axes[0].set_yticks(y)
+    axes[0].set_yticklabels(symbols, fontsize=8)
+    axes[0].invert_yaxis()
+    style_axes(axes[0], xlabel="percentage of structures containing the element (%)")
+    style_axes(axes[1], xlabel=f"same bars, zoomed to 0-{detail_limit:.0f}%")
+    axes[0].set_title(
+        f"Element presence as the neighbor window tightens ({geometry}) - "
+        f"all {len(kept)} elements present anywhere",
+        color=TEXT_PRIMARY, fontsize=12, fontweight="bold", loc="left", pad=10)
+    axes[0].legend(frameon=False, fontsize=9, labelcolor=TEXT_SECONDARY, loc="lower right")
+    fig.text(0.01, -0.004 - 6.0 / max(fig.get_size_inches()[1], 1) / 100,
              f"Neighbors are the OMAT24 structures retrieved for the 80,643 MOF-off R2SCAN train "
              f"frames under the {geometry} metric; the three blue shades are nested cuts of the same "
-             f"ranking (darker = closer). Elements shown: present in >={min_presence:.0%} of at least "
-             f"one population, ordered by their largest value across the five populations.",
+             f"ranking (darker = closer). Every element with non-zero presence in at least one of the "
+             f"five populations is shown, ordered by its largest value across them; only elements "
+             f"absent from all five are omitted. Bars past {detail_limit:.0f}% run off the right panel "
+             f"by design - read those on the left.",
              fontsize=8.5, color=TEXT_MUTED, wrap=True)
     save(fig, out / f"element_presence_by_rank_depth_{geometry}.png")
 
