@@ -569,6 +569,14 @@ def build_profiles(root, out_dir):
             f"{geometry}_top10", tables["omat_neighbors"], zcounts["omat_neighbors"],
             positions.ravel(), f"{geometry}: all ten neighbors of each MOF-off query",
         ))
+        # Nested cuts: tightening the rank window is an ordinal progression, so
+        # these are directly comparable to top10 above.
+        for depth in (2, 5):
+            profiles.append(Profile(
+                f"{geometry}_top{depth}", tables["omat_neighbors"], zcounts["omat_neighbors"],
+                positions[:, :depth].ravel(),
+                f"{geometry}: the {depth} nearest neighbors of each MOF-off query",
+            ))
         unique_positions = np.unique(positions.ravel())
         profiles.append(Profile(
             f"{geometry}_unique", tables["omat_neighbors"], zcounts["omat_neighbors"],

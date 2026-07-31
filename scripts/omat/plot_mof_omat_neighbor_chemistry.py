@@ -312,6 +312,62 @@ def plot_coverage(analysis, out, min_share=0.01):
     save(fig, out / "mof_element_coverage.png")
 
 
+# Tightening the neighbor window (top-10 -> top-5 -> top-2) is an ordinal
+# progression, not five independent categories, so those three take a one-hue
+# ordinal ramp (the documented blue steps 250/450/650, light = loosest cut) while
+# the two reference populations keep distinct categorical identities.  Verified
+# against the light surface: lightest ramp step 2.06:1, adjacent ramp separation
+# OKLab dE 20.0 / 19.5, and every ramp-vs-reference pair >=15 normal / >=8 CVD.
+RANK_RAMP = {"top10": "#86b6ef", "top5": "#2a78d6", "top2": "#104281"}
+REFERENCE = {"mof_off_r2scan": "#eb6834", "omat_bg_global": "#75746f"}
+
+
+def plot_presence_by_rank_depth(analysis, out, geometry, min_presence=0.03, top_n=30):
+    """Element presence across OMAT24, MOF-off, and tightening neighbor windows."""
+    rows = read_csv(analysis / "element_presence_and_abundance.csv")
+    series = [
+        ("omat_bg_global", REFERENCE["omat_bg_global"], "OMAT24 (uniform random)"),
+        ("mof_off_r2scan", REFERENCE["mof_off_r2scan"], "MOF-off R2SCAN"),
+        (f"{geometry}_top10", RANK_RAMP["top10"], "all 10 neighbors"),
+        (f"{geometry}_top5", RANK_RAMP["top5"], "top 5 neighbors"),
+        (f"{geometry}_top2", RANK_RAMP["top2"], "top 2 neighbors"),
+    ]
+
+    def value(row, population):
+        return float(row[f"presence_{population}"]) * 100.0
+
+    kept = [r for r in rows
+            if max(value(r, population) for population, _, _ in series) >= min_presence * 100]
+    kept.sort(key=lambda r: -value(r, "mof_off_r2scan"))
+    kept = kept[:top_n]
+    symbols = [r["symbol"] for r in kept]
+    y = np.arange(len(kept))
+
+    fig, ax = plt.subplots(figsize=(10.5, max(6.5, 0.46 * len(kept))))
+    height = 0.16
+    for i, (population, color, label) in enumerate(series):
+        offset = ((len(series) - 1) / 2 - i) * height
+        ax.barh(y + offset, [value(r, population) for r in kept], height=height * 0.92,
+                color=color, label=label, zorder=3)
+
+    ax.set_yticks(y)
+    ax.set_yticklabels(symbols, fontsize=10)
+    ax.invert_yaxis()
+    ax.set_xlim(0, 100)
+    style_axes(ax, xlabel="percentage of structures containing the element (%)",
+               title=f"Element presence as the neighbor window tightens ({geometry})")
+    ax.xaxis.grid(True)
+    ax.yaxis.grid(False)
+    ax.legend(frameon=False, fontsize=9, labelcolor=TEXT_SECONDARY, loc="lower right")
+    fig.text(0.01, -0.015,
+             f"Neighbors are the OMAT24 structures retrieved for the 80,643 MOF-off R2SCAN train "
+             f"frames under the {geometry} metric; the three blue shades are nested cuts of the same "
+             f"ranking (darker = closer). Elements shown: present in >={min_presence:.0%} of at least "
+             f"one population, ordered by MOF-off prevalence.",
+             fontsize=8.5, color=TEXT_MUTED, wrap=True)
+    save(fig, out / f"element_presence_by_rank_depth_{geometry}.png")
+
+
 def main():
     parser = argparse.ArgumentParser(description=__doc__,
                                      formatter_class=argparse.RawDescriptionHelpFormatter)
@@ -328,6 +384,8 @@ def main():
     plot_distributions(analysis, out)
     plot_pairing(analysis, out)
     plot_coverage(analysis, out)
+    for geometry in ("raw128", "pc25"):
+        plot_presence_by_rank_depth(analysis, out, geometry)
     print(f"figures written to {out}", flush=True)
 
 
