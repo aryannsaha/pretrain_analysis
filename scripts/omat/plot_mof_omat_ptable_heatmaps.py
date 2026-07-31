@@ -63,6 +63,68 @@ def read_presence(analysis):
     return table
 
 
+def plot_difference(pmv, table, out, scale, target="raw128_top5", baseline="omat_bg_global"):
+    """Signed enrichment of one population over another, in percentage points.
+
+    A signed quantity needs a diverging scale with the neutral colour pinned to
+    exactly zero, otherwise "no change" reads as a colour.  The two arms are
+    scaled independently because the data are lopsided (about -6 to +54 points):
+    a symmetric range would render all 64 depleted elements as near-white and
+    hide three quarters of the table.  The arms are therefore NOT comparable in
+    magnitude to each other - the colourbar ticks are the reference.
+    """
+    values = {}
+    for symbol in set(table[target]) | set(table[baseline]):
+        values[symbol] = table[target].get(symbol, 0.0) - table[baseline].get(symbol, 0.0)
+
+    low, high = min(values.values()), max(values.values())
+    zero = (0.0 - low) / (high - low)
+    # Diverging: documented red pole -> documented neutral grey at zero ->
+    # documented blue ramp.  The deep red end is a darkened step of the red pole.
+    colorscale = [
+        (0.0, "#7d1d1b"),
+        (round(zero * 0.55, 6), "#e34948"),
+        (round(zero, 6), "#f0efec"),
+        (round(zero + (1 - zero) * 0.25, 6), "#9ec5f4"),
+        (round(zero + (1 - zero) * 0.55, 6), "#3987e5"),
+        (1.0, "#0d366b"),
+    ]
+
+    fig = pmv.ptable_heatmap(
+        values,
+        colorscale=colorscale,
+        log=False,
+        cscale_range=(low, high),
+        # nan reaches here for elements absent from both sets; render a dash.
+        fmt=lambda v: "-" if v != v else f"{v:+.1f}",
+        show_values=True,
+        nan_color="#f2f1ee",
+        scale=scale,
+        colorbar=dict(
+            orientation="h", len=0.34, thickness=13, x=0.45, y=0.90,
+            tickvals=[-5, 0, 10, 25, 40, 55],
+            ticktext=["-5", "0", "+10", "+25", "+40", "+55"],
+            title="percentage-point change vs OMAT24 (zero = grey)",
+            tickfont=dict(size=12),
+        ),
+    )
+    fig.update_layout(
+        title=dict(
+            text=("<b>Top 5 nearest OMAT24 neighbors minus OMAT24 overall</b><br>"
+                  "<sup>percentage-point difference in the share of structures containing "
+                  "each element &#183; blue = over-selected by the neighbor search "
+                  "&#183; red = avoided &#183; grey = no change<br>"
+                  "arms are scaled independently (data run -6.4 to +54.4 points), "
+                  "so compare against the colourbar, not between arms</sup>"),
+            x=0.42, y=0.95, font=dict(size=17),
+        ),
+        margin=dict(t=130),
+    )
+    path = out / f"ptable_difference_{target}_minus_{baseline}.png"
+    fig.write_image(str(path), scale=2)
+    print(f"wrote {path}  (range {low:+.2f} to {high:+.2f} pp)", flush=True)
+
+
 def main():
     parser = argparse.ArgumentParser(description=__doc__,
                                      formatter_class=argparse.RawDescriptionHelpFormatter)
@@ -138,6 +200,8 @@ def main():
         path = out / f"ptable_presence_{population}.png"
         fig.write_image(str(path), scale=2)
         print(f"wrote {path}  ({len(values)} elements present)", flush=True)
+
+    plot_difference(pmv, table, out, args.scale)
 
     print(f"periodic-table heatmaps written to {out}", flush=True)
 
