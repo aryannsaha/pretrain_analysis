@@ -336,9 +336,16 @@ def plot_presence_by_rank_depth(analysis, out, geometry, min_presence=0.03, top_
     def value(row, population):
         return float(row[f"presence_{population}"]) * 100.0
 
-    kept = [r for r in rows
-            if max(value(r, population) for population, _, _ in series) >= min_presence * 100]
-    kept.sort(key=lambda r: -value(r, "mof_off_r2scan"))
+    def peak(row):
+        return max(value(row, population) for population, _, _ in series)
+
+    # Select and order by the largest bar in ANY population, not by MOF-off
+    # prevalence.  Ordering by the query set and then truncating would drop
+    # exactly the elements that are common among neighbors but absent from
+    # MOF-off (Li, Rb, K, Na, B, Be, Cs) - which are the informative rows -
+    # while keeping lanthanides that are ~1% of MOF-off and ~0% of everything else.
+    kept = [r for r in rows if peak(r) >= min_presence * 100]
+    kept.sort(key=lambda r: -peak(r))
     kept = kept[:top_n]
     symbols = [r["symbol"] for r in kept]
     y = np.arange(len(kept))
@@ -363,7 +370,7 @@ def plot_presence_by_rank_depth(analysis, out, geometry, min_presence=0.03, top_
              f"Neighbors are the OMAT24 structures retrieved for the 80,643 MOF-off R2SCAN train "
              f"frames under the {geometry} metric; the three blue shades are nested cuts of the same "
              f"ranking (darker = closer). Elements shown: present in >={min_presence:.0%} of at least "
-             f"one population, ordered by MOF-off prevalence.",
+             f"one population, ordered by their largest value across the five populations.",
              fontsize=8.5, color=TEXT_MUTED, wrap=True)
     save(fig, out / f"element_presence_by_rank_depth_{geometry}.png")
 
@@ -384,8 +391,8 @@ def main():
     plot_distributions(analysis, out)
     plot_pairing(analysis, out)
     plot_coverage(analysis, out)
-    for geometry in ("raw128", "pc25"):
-        plot_presence_by_rank_depth(analysis, out, geometry)
+    # raw128 only: the pc25 geometry is no longer of interest.
+    plot_presence_by_rank_depth(analysis, out, "raw128")
     print(f"figures written to {out}", flush=True)
 
 
