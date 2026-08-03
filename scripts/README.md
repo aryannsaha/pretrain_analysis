@@ -49,9 +49,17 @@ onto that family's evaluations: `0` = lte3 val, `1` = lte3 gt, `2` = lte4 val,
 files are named per scope (`uma_matpes_efs_mae_summary_<scope>.png`), so the
 families never overwrite each other.
 
+Parity panels are hexbin density maps over **every** point with a log colour
+scale, not a subsample; `--plot-style scatter` restores plain markers and
+`--gridsize` sets the hexbin resolution. Reported MAEs are accumulated in
+float64 while the plotted pairs are stored as float32, so the rendering choice
+never moves a number.
+
 Predictions are cached per evaluation, so re-running a finished index only
-redraws its figure. Set `PRETRAIN_ANALYSIS_ROOT` when the code runs from a git
-worktree so `data/` and `runs/` still resolve to the main checkout.
+redraws its figure — a few seconds each, up to ~20 s for the 8.4M-point `gt`
+splits. Redraws need no GPU, so run them directly rather than queueing them.
+Set `PRETRAIN_ANALYSIS_ROOT` when the code runs from a git worktree so `data/`
+and `runs/` still resolve to the main checkout.
 
 ## UMA From `.traj`
 

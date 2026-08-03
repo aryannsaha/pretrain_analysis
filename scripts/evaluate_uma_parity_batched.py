@@ -17,9 +17,9 @@ import csv
 import json
 import math
 import os
-import random
 import sys
-from dataclasses import dataclass, field
+from array import array
+from dataclasses import dataclass
 from itertools import groupby
 from pathlib import Path
 from types import SimpleNamespace
@@ -87,23 +87,28 @@ EVALUATIONS = [
 PLOT_DIR = DATA_ROOT / "runs/matpes_parity/uma_initial_pub"
 DEVICE, BATCH_SIZE, MAX_FRAMES = "cuda", 16, None
 MAX_ATOMS_PER_BATCH = 4096
-PROGRESS_EVERY, PLOT_POINTS = 10_000, 200_000
+PROGRESS_EVERY = 10_000
 MAX_DFT_FORCE_EV_PER_A = 25
 MODEL_LABEL = "UMA"
 
 
 @dataclass
 class Summary:
-    sample_size: int
-    seed: int
+    """Every (reference, prediction) pair for one property, plus an exact MAE.
+
+    Pairs are stored as float32 because the plot only needs them for binning;
+    the error sum stays in float64 so the reported MAE is unaffected by that.
+    The largest split here is ~8.4M force components, about 67 MB.
+    """
+
     count: int = 0
     absolute_error: float = 0.0
     low: float = math.inf
     high: float = -math.inf
-    sample: list[tuple[float, float]] = field(default_factory=list)
 
     def __post_init__(self):
-        self.random = random.Random(self.seed)
+        self.reference = array("f")
+        self.prediction = array("f")
 
     def add(self, reference: float, prediction: float) -> None:
         if not (math.isfinite(reference) and math.isfinite(prediction)):
@@ -112,20 +117,23 @@ class Summary:
         self.absolute_error += abs(reference - prediction)
         self.low = min(self.low, reference, prediction)
         self.high = max(self.high, reference, prediction)
-        if len(self.sample) < self.sample_size:
-            self.sample.append((reference, prediction))
-        else:
-            index = self.random.randrange(self.count)
-            if index < self.sample_size:
-                self.sample[index] = (reference, prediction)
+        self.reference.append(reference)
+        self.prediction.append(prediction)
 
     @property
     def mae(self) -> float:
         return self.absolute_error / self.count
 
     @property
+    def points(self) -> tuple[np.ndarray, np.ndarray]:
+        return (
+            np.frombuffer(self.reference, dtype=np.float32),
+            np.frombuffer(self.prediction, dtype=np.float32),
+        )
+
+    @property
     def limits(self) -> tuple[float, float]:
-        low, high = np.asarray(self.sample).min(), np.asarray(self.sample).max()
+        low, high = self.low, self.high
         if low == high:
             padding = max(abs(low) * 0.05, 1.0e-6)
         else:
@@ -133,11 +141,11 @@ class Summary:
         return low - padding, high + padding
 
 
-def summarize_csv(csv_path: Path, sample_size: int):
+def summarize_csv(csv_path: Path):
     summaries = {
-        "energy_eV_per_atom": Summary(sample_size, 20260729),
-        "force_eV_per_A": Summary(sample_size, 20260730),
-        "stress_eV_per_A3": Summary(sample_size, 20260731),
+        "energy_eV_per_atom": Summary(),
+        "force_eV_per_A": Summary(),
+        "stress_eV_per_A3": Summary(),
     }
     raw_counts = dict.fromkeys(summaries, 0)
     excluded_frames = 0
@@ -170,16 +178,17 @@ def summarize_csv(csv_path: Path, sample_size: int):
 def make_parity_plot(
     csv_path: Path,
     output_path: Path,
-    sample_size: int,
     title: str,
     expected_counts: dict | None = None,
+    style: str = "hexbin",
+    gridsize: int = 160,
 ) -> dict:
     import matplotlib
 
     matplotlib.use("Agg")
     import matplotlib.pyplot as plt
 
-    summaries, raw_counts, excluded_frames = summarize_csv(csv_path, sample_size)
+    summaries, raw_counts, excluded_frames = summarize_csv(csv_path)
     energy = summaries["energy_eV_per_atom"]
     force = summaries["force_eV_per_A"]
     stress = summaries["stress_eV_per_A3"]
@@ -200,11 +209,21 @@ def make_parity_plot(
     if stress.count:
         panels.append((stress, "stress component (eV/A^3)"))
 
-    figure, axes = plt.subplots(1, len(panels), figsize=(5 * len(panels), 4))
+    figure, axes = plt.subplots(1, len(panels), figsize=(5.8 * len(panels), 4.4))
     for axis, (summary, label) in zip(np.atleast_1d(axes), panels, strict=False):
-        points = np.asarray(summary.sample)
+        reference, prediction = summary.points
         limits = summary.limits
-        axis.scatter(points[:, 0], points[:, 1], s=4, alpha=0.25, rasterized=True)
+        if style == "hexbin":
+            # Log-scaled counts: density spans several orders of magnitude
+            # between the diagonal and the tails.
+            mesh = axis.hexbin(
+                reference, prediction, gridsize=gridsize, bins="log",
+                cmap="viridis", mincnt=1, linewidths=0,
+                extent=(limits[0], limits[1], limits[0], limits[1]),
+            )
+            figure.colorbar(mesh, ax=axis, label="points per bin")
+        else:
+            axis.scatter(reference, prediction, s=4, alpha=0.25, rasterized=True)
         axis.plot(limits, limits, "k--", linewidth=1)
         axis.set(
             xlim=limits,
@@ -226,7 +245,9 @@ def make_parity_plot(
         "energy_points": energy.count,
         "force_points": force.count,
         "stress_points": stress.count,
-        "sample_size": sample_size,
+        "plot_style": style,
+        "plot_gridsize": gridsize if style == "hexbin" else None,
+        "plotted_points": "all",
         "included_frames": energy.count,
         "excluded_frames": excluded_frames,
         "max_dft_force_eV_per_A": MAX_DFT_FORCE_EV_PER_A,
@@ -331,6 +352,15 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--progress-every", type=int, default=PROGRESS_EVERY)
     parser.add_argument("--plot-dir", type=Path, default=PLOT_DIR)
     parser.add_argument(
+        "--plot-style",
+        default="hexbin",
+        choices=["hexbin", "scatter"],
+        help="Parity rendering. Both draw every point; hexbin bins them by density.",
+    )
+    parser.add_argument(
+        "--gridsize", type=int, default=160, help="Hexbin resolution along x."
+    )
+    parser.add_argument(
         "--plot-only",
         action="store_true",
         help="Rebuild figures from cached prediction CSVs; never run inference.",
@@ -428,10 +458,11 @@ def main() -> None:
         plot = make_parity_plot(
             csv_path,
             plot_path,
-            PLOT_POINTS,
             f"uma-s-{evaluation['base_model']} fine-tune, "
             f"{evaluation['split']} ({data_path.name})",
             metadata["counts"],
+            style=args.plot_style,
+            gridsize=args.gridsize,
         )
         metadata["plot"] = {
             "complete": True,

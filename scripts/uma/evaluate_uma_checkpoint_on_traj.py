@@ -22,7 +22,6 @@ ROOT = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(ROOT))
 
 from scripts.evaluate_uma_parity_batched import (  # noqa: E402
-    PLOT_POINTS,
     MAX_DFT_FORCE_EV_PER_A,
     make_parity_plot,
 )
@@ -51,7 +50,10 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--progress-every", type=int, default=10000)
     parser.add_argument("--plot", type=Path, default=None,
                         help="Parity figure path. Defaults to <output-dir>/parity.png.")
-    parser.add_argument("--plot-points", type=int, default=PLOT_POINTS)
+    parser.add_argument("--plot-style", default="hexbin", choices=["hexbin", "scatter"],
+                        help="Parity rendering; both draw every point.")
+    parser.add_argument("--gridsize", type=int, default=160,
+                        help="Hexbin resolution along x.")
     parser.add_argument("--title", default=None)
     return parser.parse_args()
 
@@ -79,7 +81,8 @@ def main() -> None:
     plot_path.parent.mkdir(parents=True, exist_ok=True)
     title = args.title or f"{model_path.parent.parent.parent.name} on {data_path.name}"
     plot = make_parity_plot(
-        csv_path, plot_path, args.plot_points, title, metadata["counts"]
+        csv_path, plot_path, title, metadata["counts"],
+        style=args.plot_style, gridsize=args.gridsize,
     )
     metadata["plot"] = {
         "complete": True,
