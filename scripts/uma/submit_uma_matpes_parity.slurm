@@ -2,7 +2,7 @@
 #SBATCH --job-name=uma_matpes_parity
 #SBATCH --output=/scratch/gpfs/ROSENGROUP/aryan/pretrain_analysis/logs/slurm/%x_%A_%a.out
 #SBATCH --error=/scratch/gpfs/ROSENGROUP/aryan/pretrain_analysis/logs/slurm/%x_%A_%a.err
-#SBATCH --array=0-3
+#SBATCH --array=0-7
 #SBATCH --time=6:00:00
 #SBATCH --nodes=1
 #SBATCH --ntasks=1
@@ -12,7 +12,10 @@
 
 # UMA parity evaluation for the MatPES r2SCAN 75k fine-tunes.
 # Array index maps onto EVALUATIONS in scripts/evaluate_uma_parity_batched.py:
-#   0 = lte3 lte_val   1 = lte3 gt   2 = lte4 lte_val   3 = lte4 gt
+#   uma-s-1p1   base: 0 = lte3 val  1 = lte3 gt  2 = lte4 val  3 = lte4 gt
+#   uma-s-1p2p1 base: 4 = lte3 val  5 = lte3 gt  6 = lte4 val  7 = lte4 gt
+# Completed evaluations reuse their cached predictions.csv, so re-running an
+# already-finished index only redraws its figure.
 
 set -euo pipefail
 

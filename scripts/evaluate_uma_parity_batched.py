@@ -51,18 +51,36 @@ __all__ = [
 ]
 
 
-RUN_TAG = "uma-s-1p1_matpes_r2scan_lte{lte}_s75k_efs_20260802"
+# Each fine-tune differs only in the pretrained checkpoint it started from, so
+# the two families are directly comparable on identical data and hyperparameters.
+BASE_MODELS = [
+    {
+        "tag": "1p1",
+        "run_dir_suffix": "",
+        "run_tag": "uma-s-1p1_matpes_r2scan_lte{lte}_s75k_efs_20260802",
+    },
+    {
+        "tag": "1p2p1",
+        "run_dir_suffix": "_1p2p1",
+        "run_tag": "uma-s-1p2p1_matpes_r2scan_lte{lte}_s75k_efs_20260802",
+    },
+]
 EVALUATIONS = [
     {
         "model": DATA_ROOT
-        / f"runs/uma/matpes/r2scan_flatiron/lte{lte}_s75k/{RUN_TAG.format(lte=lte)}"
+        / f"runs/uma/matpes/r2scan_flatiron/lte{lte}_s75k{base['run_dir_suffix']}"
+        / base["run_tag"].format(lte=lte)
         / "checkpoints/final/inference_ckpt.pt",
         "data": DATA_ROOT / f"data/processed/matpes/r2scan_flatiron/r2scan_{lte}/{filename}",
         "output_dir": DATA_ROOT
-        / f"runs/matpes_parity/uma_initial/lte{lte}__{RUN_TAG.format(lte=lte)}__{dataset}",
+        / "runs/matpes_parity/uma_initial"
+        / f"lte{lte}__{base['run_tag'].format(lte=lte)}__{dataset}",
         "task_name": "omat",
-        "label": f"lte{lte} {dataset}",
+        "base_model": base["tag"],
+        "split": f"lte{lte} {dataset}",
+        "label": f"{base['tag']} lte{lte} {dataset}",
     }
+    for base in BASE_MODELS
     for lte in (3, 4)
     for dataset, filename in (("lte_val", "lte_val.traj"), ("gt", "gt_.traj"))
 ]
@@ -215,8 +233,11 @@ def make_parity_plot(
     }
 
 
+BASE_MODEL_COLORS = {"1p1": "#4C72B0", "1p2p1": "#DD8452"}
+
+
 def write_summary(rows: list[dict], plot_dir: Path) -> None:
-    """One CSV plus one grouped bar chart covering every evaluation."""
+    """One CSV plus a grouped bar chart comparing base models on each split."""
     import matplotlib
 
     matplotlib.use("Agg")
@@ -226,11 +247,14 @@ def write_summary(rows: list[dict], plot_dir: Path) -> None:
     with csv_path.open("w", newline="") as handle:
         writer = csv.writer(handle)
         writer.writerow(
-            ["label", "E_meV_per_atom", "F_meV_per_A", "S_meV_per_A3", "frames", "excluded_frames"]
+            ["label", "base_model", "split", "E_meV_per_atom", "F_meV_per_A",
+             "S_meV_per_A3", "frames", "excluded_frames"]
         )
         for row in rows:
             writer.writerow([
                 row["label"],
+                row.get("base_model", ""),
+                row.get("split", ""),
                 1000 * row["energy_mae_eV_per_atom"],
                 1000 * row["force_mae_eV_per_A"],
                 None if row["stress_mae_eV_per_A3"] is None else 1000 * row["stress_mae_eV_per_A3"],
@@ -238,26 +262,46 @@ def write_summary(rows: list[dict], plot_dir: Path) -> None:
                 row["excluded_frames"],
             ])
 
-    labels = [row["label"] for row in rows]
-    positions = np.arange(len(labels))
+    # Group bars by split so the two base models sit side by side.
+    splits, bases = [], []
+    for row in rows:
+        if row.get("split") not in splits:
+            splits.append(row.get("split"))
+        if row.get("base_model") not in bases:
+            bases.append(row.get("base_model"))
+    by_key = {(row.get("base_model"), row.get("split")): row for row in rows}
+
+    positions = np.arange(len(splits))
+    width = 0.8 / max(len(bases), 1)
     panels = [
         ("energy_mae_eV_per_atom", "Energy MAE (meV/atom)"),
         ("force_mae_eV_per_A", "Force MAE (meV/A)"),
         ("stress_mae_eV_per_A3", "Stress MAE (meV/A^3)"),
     ]
-    figure, axes = plt.subplots(1, len(panels), figsize=(5 * len(panels), 4))
+    figure, axes = plt.subplots(1, len(panels), figsize=(5.5 * len(panels), 4.5))
     for axis, (key, title) in zip(np.atleast_1d(axes), panels, strict=False):
-        values = [
-            math.nan if row[key] is None else 1000 * row[key] for row in rows
-        ]
-        bars = axis.bar(positions, values, color="#4C72B0", width=0.6)
-        axis.bar_label(bars, fmt="%.3g", padding=2, fontsize=8)
-        axis.set_xticks(positions, labels, rotation=20, ha="right")
+        for index, base in enumerate(bases):
+            values = []
+            for split in splits:
+                row = by_key.get((base, split))
+                value = None if row is None else row[key]
+                values.append(math.nan if value is None else 1000 * value)
+            offset = (index - (len(bases) - 1) / 2) * width
+            bars = axis.bar(
+                positions + offset, values, width=width,
+                label=f"uma-s-{base}", color=BASE_MODEL_COLORS.get(base),
+            )
+            axis.bar_label(bars, fmt="%.3g", padding=2, fontsize=7)
+        axis.set_xticks(positions, splits, rotation=15, ha="right")
         axis.set_ylabel(title)
         axis.set_title(title)
         axis.grid(True, axis="y", alpha=0.25)
         axis.set_axisbelow(True)
-    figure.suptitle(f"{MODEL_LABEL} fine-tuned on MatPES r2SCAN 75k: validation vs held-out larger cells")
+    np.atleast_1d(axes)[0].legend(frameon=False, fontsize=8)
+    figure.suptitle(
+        "UMA fine-tuned on MatPES r2SCAN 75k: base checkpoint comparison "
+        "(val vs held-out larger cells)"
+    )
     figure.tight_layout()
     summary_png = plot_dir / "uma_matpes_efs_mae_summary.png"
     figure.savefig(summary_png, format="png", dpi=200)
@@ -308,12 +352,25 @@ def main() -> None:
     plot_dir.mkdir(parents=True, exist_ok=True)
 
     if args.summary_only:
-        rows = []
+        rows, missing = [], []
         for evaluation in EVALUATIONS:
-            metadata = json.loads(
-                (Path(evaluation["output_dir"]) / "metadata.json").read_text()
-            )
-            rows.append({"label": evaluation["label"], **metadata["plot"]})
+            path = Path(evaluation["output_dir"]) / "metadata.json"
+            try:
+                metadata = json.loads(path.read_text())
+                plot = metadata["plot"]
+            except (OSError, KeyError, json.JSONDecodeError):
+                missing.append(evaluation["label"])
+                continue
+            rows.append({
+                "label": evaluation["label"],
+                "base_model": evaluation["base_model"],
+                "split": evaluation["split"],
+                **plot,
+            })
+        if not rows:
+            raise SystemExit("No evaluations have completed yet")
+        if missing:
+            print(f"Skipping {len(missing)} evaluation(s) without results: {', '.join(missing)}")
         write_summary(rows, plot_dir)
         return
 
@@ -366,7 +423,12 @@ def main() -> None:
             **plot,
         }
         write_json(metadata_path, metadata)
-        rows.append({"label": label, **plot})
+        rows.append({
+            "label": label,
+            "base_model": evaluation["base_model"],
+            "split": evaluation["split"],
+            **plot,
+        })
 
         print(f"[{label}] Energy MAE: {plot['energy_mae_eV_per_atom']:.6g} eV/atom")
         print(f"[{label}] Force MAE: {plot['force_mae_eV_per_A']:.6g} eV/A")

@@ -1,0 +1,121 @@
+defaults:
+- data: uma-s-1p1_matpes_r2scan_lte4_s75k_efs_20260802_data
+- _self_
+job:
+  device_type: CUDA
+  scheduler:
+    mode: SLURM
+    ranks_per_node: 1
+    num_nodes: 1
+    slurm:
+      timeout_hr: 60
+      cpus_per_task: 6
+      mem_gb: 64
+      partition: null
+      additional_parameters:
+        gres: gpu:1
+        mail_user: as7959@princeton.edu
+        mail_type: begin,end,fail
+        constraint: intel&gpu80
+  debug: false
+  run_dir: /scratch/gpfs/ROSENGROUP/aryan/pretrain_analysis/runs/uma/matpes/r2scan_flatiron/lte4_s75k_1p2p1
+  run_name: uma_ft_matpes_r2scan_lte4_s75k_1p2p1
+  timestamp_id: uma-s-1p2p1_matpes_r2scan_lte4_s75k_efs_20260802
+  runner_state_path: null
+  logger:
+    _target_: fairchem.core.common.logger.WandBSingletonLogger.init_wandb
+    _partial_: true
+    entity: rosengroup-general
+    project: uma-matpes-r2scan-set75k-ft
+max_neighbors: 300
+epochs: 30
+steps: null
+batch_size: 16
+lr: 0.0001
+weight_decay: 0.001
+evaluate_every_n_steps: 4688
+checkpoint_every_n_steps: 4688
+train_dataset:
+  _target_: fairchem.core.datasets.mt_concat_dataset.create_concat_dataset
+  dataset_configs:
+    omat: ${data.train_dataset}
+  combined_dataset_config:
+    sampling:
+      type: temperature
+      temperature: 1.0
+train_dataloader:
+  _target_: fairchem.core.components.common.dataloader_builder.get_dataloader
+  dataset: ${train_dataset}
+  batch_sampler_fn:
+    _target_: fairchem.core.common.data_parallel.BalancedBatchSampler
+    _partial_: true
+    batch_size: ${batch_size}
+    shuffle: true
+    seed: 0
+  num_workers: 0
+  collate_fn:
+    _target_: fairchem.core.units.mlip_unit.mlip_unit.mt_collater_adapter
+    tasks: ${data.tasks_list}
+val_dataset:
+  _target_: fairchem.core.datasets.mt_concat_dataset.create_concat_dataset
+  dataset_configs:
+    omat: ${data.val_dataset}
+  combined_dataset_config:
+    sampling:
+      type: temperature
+      temperature: 1.0
+eval_dataloader:
+  _target_: fairchem.core.components.common.dataloader_builder.get_dataloader
+  dataset: ${val_dataset}
+  batch_sampler_fn:
+    _target_: fairchem.core.common.data_parallel.BalancedBatchSampler
+    _partial_: true
+    batch_size: ${batch_size}
+    shuffle: false
+    seed: 0
+  num_workers: 0
+  collate_fn:
+    _target_: fairchem.core.units.mlip_unit.mlip_unit.mt_collater_adapter
+    tasks: ${data.tasks_list}
+runner:
+  _target_: fairchem.core.components.train.train_runner.TrainEvalRunner
+  train_dataloader: ${train_dataloader}
+  eval_dataloader: ${eval_dataloader}
+  train_eval_unit:
+    _target_: fairchem.core.units.mlip_unit.mlip_unit.MLIPTrainEvalUnit
+    job_config: ${job}
+    tasks: ${data.tasks_list}
+    model:
+      _target_: fairchem.core.units.mlip_unit.mlip_unit.initialize_finetuning_model
+      checkpoint_location: /scratch/gpfs/ROSENGROUP/aryan/pretrain_analysis/models/pretrained/uma-s-1p2p1.pt
+      overrides:
+        backbone:
+          otf_graph: true
+          max_neighbors: ${max_neighbors}
+          regress_stress: ${data.regress_stress}
+          always_use_pbc: false
+        pass_through_head_outputs: ${data.pass_through_head_outputs}
+      heads: ${data.heads}
+    optimizer_fn:
+      _target_: torch.optim.AdamW
+      _partial_: true
+      lr: ${lr}
+      weight_decay: ${weight_decay}
+    cosine_lr_scheduler_fn:
+      _target_: fairchem.core.units.mlip_unit.mlip_unit._get_consine_lr_scheduler
+      _partial_: true
+      warmup_factor: 0.2
+      warmup_epochs: 0.01
+      lr_min_factor: 0.01
+      epochs: ${epochs}
+      steps: ${steps}
+    print_every: 10
+    clip_grad_norm: 100
+  max_epochs: ${epochs}
+  max_steps: ${steps}
+  evaluate_every_n_steps: ${evaluate_every_n_steps}
+  callbacks:
+  - _target_: fairchem.core.components.train.train_runner.TrainCheckpointCallback
+    checkpoint_every_n_steps: ${checkpoint_every_n_steps}
+    max_saved_checkpoints: 5
+  - _target_: torchtnt.framework.callbacks.TQDMProgressBar
