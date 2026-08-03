@@ -429,7 +429,8 @@ def main() -> None:
             csv_path,
             plot_path,
             PLOT_POINTS,
-            f"{label}: UMA-S-1p1 fine-tune on {data_path.name}",
+            f"uma-s-{evaluation['base_model']} fine-tune, "
+            f"{evaluation['split']} ({data_path.name})",
             metadata["counts"],
         )
         metadata["plot"] = {
