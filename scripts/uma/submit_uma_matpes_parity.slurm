@@ -2,7 +2,7 @@
 #SBATCH --job-name=uma_matpes_parity
 #SBATCH --output=/scratch/gpfs/ROSENGROUP/aryan/pretrain_analysis/logs/slurm/%x_%A_%a.out
 #SBATCH --error=/scratch/gpfs/ROSENGROUP/aryan/pretrain_analysis/logs/slurm/%x_%A_%a.err
-#SBATCH --array=0-7
+#SBATCH --array=0-3
 #SBATCH --time=6:00:00
 #SBATCH --nodes=1
 #SBATCH --ntasks=1
@@ -11,9 +11,9 @@
 #SBATCH --gres=gpu:1
 
 # UMA parity evaluation for the MatPES r2SCAN 75k fine-tunes.
-# Array index maps onto EVALUATIONS in scripts/evaluate_uma_parity_batched.py:
-#   uma-s-1p1   base: 0 = lte3 val  1 = lte3 gt  2 = lte4 val  3 = lte4 gt
-#   uma-s-1p2p1 base: 4 = lte3 val  5 = lte3 gt  6 = lte4 val  7 = lte4 gt
+# Evaluates one base model's fine-tunes; BASE_MODEL selects which.
+# Array index maps onto that base model's evaluations:
+#   0 = lte3 val   1 = lte3 gt   2 = lte4 val   3 = lte4 gt
 # Completed evaluations reuse their cached predictions.csv, so re-running an
 # already-finished index only redraws its figure.
 
@@ -25,6 +25,7 @@ CONDA_ENV="${CONDA_ENV:-pretrain_analysis_env}"
 CONDA_SH=/scratch/gpfs/ROSENGROUP/aryan/software/miniconda/etc/profile.d/conda.sh
 ENV_PY="${ENV_PY:-/scratch/gpfs/ROSENGROUP/aryan/software/conda_envs/$CONDA_ENV/bin/python}"
 BATCH_SIZE="${BATCH_SIZE:-32}"
+BASE_MODEL="${BASE_MODEL:-1p2p1}"
 
 TASK_ID="${SLURM_ARRAY_TASK_ID:-0}"
 
@@ -34,6 +35,7 @@ echo "  root: $ROOT"
 echo "  script_root: $SCRIPT_ROOT"
 echo "  python: $ENV_PY"
 echo "  batch_size: $BATCH_SIZE"
+echo "  base_model: $BASE_MODEL"
 nvidia-smi --query-gpu=name,memory.total --format=csv,noheader || true
 
 source "$CONDA_SH"
@@ -48,6 +50,7 @@ export PRETRAIN_ANALYSIS_ROOT="$ROOT"
 
 cd "$SCRIPT_ROOT"
 "$ENV_PY" scripts/evaluate_uma_parity_batched.py \
+  --base-model "$BASE_MODEL" \
   --task-index "$TASK_ID" \
   --device cuda \
   --batch-size "$BATCH_SIZE"

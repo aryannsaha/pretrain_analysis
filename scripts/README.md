@@ -35,15 +35,22 @@ python scripts/uma/evaluate_uma_checkpoint_on_traj.py \
 ```
 
 Run the full MatPES r2SCAN 75k sweep (lte3/lte4 x val/gt) on Slurm, then build
-the cross-evaluation summary once the array finishes:
+the summary once the array finishes:
 
 ```bash
 sbatch scripts/uma/submit_uma_matpes_parity.slurm
 python scripts/evaluate_uma_parity_batched.py --summary-only
 ```
 
-Array index maps onto `EVALUATIONS`: `0` = lte3 val, `1` = lte3 gt, `2` = lte4
-val, `3` = lte4 gt. Set `PRETRAIN_ANALYSIS_ROOT` when the code runs from a git
+`--base-model` selects which fine-tune family to evaluate: `1p2p1` (default),
+`1p1`, or `all` to put both in one grouped figure. The Slurm array index maps
+onto that family's evaluations: `0` = lte3 val, `1` = lte3 gt, `2` = lte4 val,
+`3` = lte4 gt; override the family with `BASE_MODEL=1p1 sbatch ...`. Summary
+files are named per scope (`uma_matpes_efs_mae_summary_<scope>.png`), so the
+families never overwrite each other.
+
+Predictions are cached per evaluation, so re-running a finished index only
+redraws its figure. Set `PRETRAIN_ANALYSIS_ROOT` when the code runs from a git
 worktree so `data/` and `runs/` still resolve to the main checkout.
 
 ## UMA From `.traj`

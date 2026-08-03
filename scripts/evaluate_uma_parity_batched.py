@@ -236,14 +236,14 @@ def make_parity_plot(
 BASE_MODEL_COLORS = {"1p1": "#4C72B0", "1p2p1": "#DD8452"}
 
 
-def write_summary(rows: list[dict], plot_dir: Path) -> None:
+def write_summary(rows: list[dict], plot_dir: Path, scope: str) -> None:
     """One CSV plus a grouped bar chart comparing base models on each split."""
     import matplotlib
 
     matplotlib.use("Agg")
     import matplotlib.pyplot as plt
 
-    csv_path = plot_dir / "uma_matpes_efs_mae_summary.csv"
+    csv_path = plot_dir / f"uma_matpes_efs_mae_summary_{scope}.csv"
     with csv_path.open("w", newline="") as handle:
         writer = csv.writer(handle)
         writer.writerow(
@@ -297,13 +297,14 @@ def write_summary(rows: list[dict], plot_dir: Path) -> None:
         axis.set_title(title)
         axis.grid(True, axis="y", alpha=0.25)
         axis.set_axisbelow(True)
-    np.atleast_1d(axes)[0].legend(frameon=False, fontsize=8)
+    if len(bases) > 1:
+        np.atleast_1d(axes)[0].legend(frameon=False, fontsize=8)
+    based = " vs ".join(f"uma-s-{base}" for base in bases)
     figure.suptitle(
-        "UMA fine-tuned on MatPES r2SCAN 75k: base checkpoint comparison "
-        "(val vs held-out larger cells)"
+        f"{based} fine-tuned on MatPES r2SCAN 75k: val vs held-out larger cells"
     )
     figure.tight_layout()
-    summary_png = plot_dir / "uma_matpes_efs_mae_summary.png"
+    summary_png = plot_dir / f"uma_matpes_efs_mae_summary_{scope}.png"
     figure.savefig(summary_png, format="png", dpi=200)
     plt.close(figure)
     print(f"Saved {summary_png}")
@@ -313,9 +314,15 @@ def write_summary(rows: list[dict], plot_dir: Path) -> None:
 def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument(
+        "--base-model",
+        default="1p2p1",
+        choices=[base["tag"] for base in BASE_MODELS] + ["all"],
+        help="Which pretrained checkpoint's fine-tunes to evaluate and summarise.",
+    )
+    parser.add_argument(
         "--task-index",
         type=int,
-        help="Run only this entry of EVALUATIONS (for Slurm arrays).",
+        help="Run only this entry of the selected base model's evaluations (for Slurm arrays).",
     )
     parser.add_argument("--device", default=DEVICE, choices=["cpu", "cuda"])
     parser.add_argument("--batch-size", type=int, default=BATCH_SIZE)
@@ -336,14 +343,23 @@ def parse_args() -> argparse.Namespace:
     return parser.parse_args()
 
 
-def selected(args: argparse.Namespace) -> list[dict]:
-    if args.task_index is None:
+def active(args: argparse.Namespace) -> list[dict]:
+    """Every evaluation belonging to the requested base model."""
+    if args.base_model == "all":
         return EVALUATIONS
-    if not 0 <= args.task_index < len(EVALUATIONS):
+    return [e for e in EVALUATIONS if e["base_model"] == args.base_model]
+
+
+def selected(args: argparse.Namespace) -> list[dict]:
+    evaluations = active(args)
+    if args.task_index is None:
+        return evaluations
+    if not 0 <= args.task_index < len(evaluations):
         raise SystemExit(
-            f"--task-index must be in [0, {len(EVALUATIONS) - 1}], got {args.task_index}"
+            f"--task-index must be in [0, {len(evaluations) - 1}] for "
+            f"--base-model {args.base_model}, got {args.task_index}"
         )
-    return [EVALUATIONS[args.task_index]]
+    return [evaluations[args.task_index]]
 
 
 def main() -> None:
@@ -353,7 +369,7 @@ def main() -> None:
 
     if args.summary_only:
         rows, missing = [], []
-        for evaluation in EVALUATIONS:
+        for evaluation in active(args):
             path = Path(evaluation["output_dir"]) / "metadata.json"
             try:
                 metadata = json.loads(path.read_text())
@@ -371,7 +387,7 @@ def main() -> None:
             raise SystemExit("No evaluations have completed yet")
         if missing:
             print(f"Skipping {len(missing)} evaluation(s) without results: {', '.join(missing)}")
-        write_summary(rows, plot_dir)
+        write_summary(rows, plot_dir, args.base_model)
         return
 
     rows = []
@@ -443,8 +459,8 @@ def main() -> None:
         )
         print(f"[{label}] Saved {plot_path}")
 
-    if args.task_index is None and len(rows) == len(EVALUATIONS):
-        write_summary(rows, plot_dir)
+    if args.task_index is None and len(rows) == len(active(args)):
+        write_summary(rows, plot_dir, args.base_model)
 
 
 if __name__ == "__main__":
