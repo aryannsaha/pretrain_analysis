@@ -281,10 +281,15 @@ def plot_stability(df, out_dir, pooling="mean"):
     sub = df[df.pooling == pooling]
     if "energy_logme_subsample_std" not in sub.columns:
         return
-    fig, ax = plt.subplots(figsize=(6.0, 5.2))
+    fig, ax = plt.subplots(figsize=(6.6, 5.2))
     targets = sorted(sub["target"].unique())
+
+    # Collect every point first, then place all labels together. Points from
+    # different targets land close to each other, so deconflicting within a
+    # series is not enough -- the collisions are across series.
+    points = []
     for i, target in enumerate(targets):
-        pts_x, pts_y, labels = [], [], []
+        pts_x, pts_y = [], []
         for fset in _feature_sets(sub):
             g = sub[(sub.target == target) & (sub.feature_set == fset)]
             spread = float(np.nanstd(g["energy_logme"].to_numpy(dtype=float)))
@@ -292,12 +297,26 @@ def plot_stability(df, out_dir, pooling="mean"):
             if np.isfinite(spread) and np.isfinite(noise):
                 pts_x.append(noise)
                 pts_y.append(spread)
-                labels.append(fset)
+                points.append((noise, spread, f"{fset} ({target})", SERIES[i % len(SERIES)]))
         ax.scatter(pts_x, pts_y, s=80, color=SERIES[i % len(SERIES)],
                    label=target, zorder=3, edgecolor=SURFACE, linewidth=1.5)
-        for xx, yy, lab in zip(pts_x, pts_y, labels, strict=True):
-            ax.annotate(lab, (xx, yy), xytext=(6, 4), textcoords="offset points",
-                        fontsize=7.5, color=INK_2)
+
+    if points:
+        ys = [p[1] for p in points]
+        span = (max(ys) - min(ys)) or 1.0
+        ax.set_ylim(min(ys) - 0.10 * span, max(ys) + 0.14 * span)
+        # Greedy vertical separation in display space, bottom-up.
+        min_gap = 0.062 * span
+        last = -np.inf
+        for x, y, lab, color in sorted(points, key=lambda p: p[1]):
+            placed = max(y, last + min_gap)
+            last = placed
+            ax.annotate(
+                lab, (x, y),
+                xytext=(9, 3 + (placed - y) / span * 46),
+                textcoords="offset points",
+                fontsize=7.5, color=color,
+            )
     lim = [0, max(ax.get_xlim()[1], ax.get_ylim()[1])]
     ax.plot(lim, lim, color=MUTED, linestyle="--", linewidth=1.2, zorder=1)
     ax.annotate("signal = noise", (lim[1] * 0.62, lim[1] * 0.66), color=MUTED,
