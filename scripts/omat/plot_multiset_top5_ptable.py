@@ -127,6 +127,16 @@ def decade_ticks(low, high):
     return [t for t in ticks if low / 2 <= t <= high * 2]
 
 
+def linear_ticks(high):
+    """Round milestones from zero up to `high`, for the linear presence scale."""
+    step = next(s for s in (0.1, 0.25, 0.5, 1, 2, 5, 10, 20) if high / s <= 8)
+    ticks, value = [0.0], step
+    while value <= high:
+        ticks.append(round(value, 4))
+        value += step
+    return ticks
+
+
 def diverging_ticks(low, high):
     """Zero, one negative anchor, and evenly spaced positive milestones."""
     step = 5 if high <= 30 else 10 if high <= 70 else 20
@@ -168,13 +178,24 @@ def percent(value):
     return f"{value:.3f}".rstrip("0") or "0"
 
 
-def presence_figure(pmv, values, headline, subtitle, low, high, scale):
-    ticks = decade_ticks(low, high)
+def presence_figure(pmv, values, headline, subtitle, low, high, scale, log=True):
+    """Log by default; linear when the plotted values span little more than a decade.
+
+    Log is the right default for the neighbor panels, whose presence rates run
+    from ~1e-4% to ~60%.  A single subdataset is the opposite case: its rates sit
+    in one narrow band, so a log scale spends almost the whole colourbar on a few
+    rare-earth outliers and renders the entire body of the table the same blue.
+    """
+    ticks = decade_ticks(low, high) if log else linear_ticks(high)
+    span = (
+        f"log colour scale ({low:.4g}% to {high:.3g}%)" if log
+        else f"linear colour scale (0% to {high:.3g}%)"
+    )
     fig = pmv.ptable_heatmap(
         values,
         colorscale=COLORSCALE,
-        log=True,
-        cscale_range=(low, high),
+        log=log,
+        cscale_range=(low, high) if log else (0.0, high),
         fmt=percent,
         show_values=True,
         nan_color="#f2f1ee",
@@ -193,8 +214,7 @@ def presence_figure(pmv, values, headline, subtitle, low, high, scale):
             text=(f"<b>{headline}</b><br>"
                   f"<sup>{subtitle} &#183; {len(values)} of 118 elements present "
                   f"&#183; blank = absent from this set<br>"
-                  f"shared log colour scale ({low:.4g}% to {high:.3g}%) "
-                  f"across every panel in this set</sup>"),
+                  f"shared {span} across every panel in this set</sup>"),
             x=0.42, y=0.95, font=dict(size=17),
         ),
         margin=dict(t=130),
@@ -265,6 +285,12 @@ def main():
                         help="one or more presence CSVs; all share one scale")
     parser.add_argument("--out", type=Path, default=None)
     parser.add_argument("--scale", type=float, default=1.4)
+    parser.add_argument(
+        "--linear", action="store_true",
+        help="linear presence colour scale from zero instead of log; use when the "
+             "plotted populations span roughly a decade or less, as a single OMAT24 "
+             "subdataset does (a log scale renders those panels almost flat)",
+    )
     args = parser.parse_args()
 
     paths = [p.resolve() for p in args.presence]
@@ -289,7 +315,10 @@ def main():
     # One shared log range across every presence panel, baseline included.
     everything = [v for values in table.values() for v in values.values()]
     low, high = min(everything), max(everything)
-    print(f"shared presence range: {low:.4g}% to {high:.3g}% (log)", flush=True)
+    kind_note = "linear from 0" if args.linear else "log"
+    print(
+        f"shared presence range: {low:.4g}% to {high:.3g}% ({kind_note})", flush=True
+    )
 
     # One shared diverging range across every difference panel, so the query
     # sets can be compared to each other and not only to OMAT24.
@@ -318,7 +347,7 @@ def main():
 
         fig = presence_figure(pmv, table[population], headline,
                               subtitle_for(population, kind, depth, meta),
-                              low, high, args.scale)
+                              low, high, args.scale, log=not args.linear)
         path = out / f"ptable_presence_{population}.png"
         fig.write_image(str(path), scale=2)
         print(f"wrote {path}  ({len(table[population])} elements present)", flush=True)
