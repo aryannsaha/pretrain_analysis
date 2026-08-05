@@ -200,8 +200,7 @@ def main():
     ax.set_xticks(ks)
     ax.set_xlim(0.4, 15.8)
     ax.set_ylim(0, 45)
-    ax.set_xlabel("neighbour rank $K$\n"
-                  "falling curve = no single twin, but plenty of near-misses")
+    ax.set_xlabel("neighbour rank $K$\n")
     ax.set_ylabel("structures beyond OMAT24's own p95 (%)")
     # Wrapped by hand: one line of this does not fit the panel width.  "95% of
     # OMAT24 rows fall below" rather than "is d_K for 95% of rows" -- the
@@ -225,19 +224,13 @@ def main():
         f"100,824,585 · {counts}",
         ha="center",
     )
-    # What the axis actually measures.  Worth stating on the figure: a distance
-    # in a learned embedding space is easy to misread as a physical separation.
-    # Lines are kept short by hand because the note is wider than one panel.
+    # What the axis actually measures, since a distance in a learned embedding
+    # space is easy to misread as a physical separation.
     fig.text(
         0.5, 0.015,
         "$d_K$ = Euclidean distance from a structure to its $K$-th nearest OMAT24 "
-        "row, in the 25-PC projection of the 128-d UMA embedding.\n"
-        "The embedding is a learned representation, so this distance is "
-        "dimensionless — not Ångströms.\n"
-        "Dimensions are standardised by OMAT24's own mean and standard deviation "
-        "before projection, so 1.0 is about one standard deviation; the 25 PCs "
-        "retain 79.7% of the variance.",
-        ha="center", va="bottom", linespacing=1.5,
+        "row, in the 25-PC projection of the 128-d UMA embedding.",
+        ha="center", va="bottom",
     )
 
     fig.tight_layout(rect=(0, 0.23, 1, 0.91))
