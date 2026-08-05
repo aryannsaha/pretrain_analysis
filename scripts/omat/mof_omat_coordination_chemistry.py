@@ -318,7 +318,21 @@ def _init_worker(root):
     _WORKER["manifest"], _WORKER["starts"] = manifest, starts
 
 
-def analyse_structure(atoms, population, key, global_row, chemenv=True):
+def select_sites(metals, cap):
+    """At most `cap` metal sites, evenly spaced so the choice is deterministic.
+
+    A MOF frame carries ~4 metal sites; a retrieved 3000 K OMAT24 neighbour carries
+    ~24, and ChemEnv's cost is per site and rises steeply with coordination number,
+    so the neighbour side would otherwise dominate the runtime by two orders of
+    magnitude.  Site statistics are pooled over thousands of structures, so a
+    per-structure cap costs precision that is far below any effect reported here.
+    """
+    if cap <= 0 or metals.size <= cap:
+        return metals
+    return metals[np.linspace(0, metals.size - 1, cap).round().astype(int)]
+
+
+def analyse_structure(atoms, population, key, global_row, chemenv=True, site_cap=0):
     from pymatgen.analysis.bond_valence import calculate_bv_sum
     from pymatgen.analysis.chemenv.coordination_environments.structure_environments import (
         LightStructureEnvironments,
@@ -326,7 +340,8 @@ def analyse_structure(atoms, population, key, global_row, chemenv=True):
     from pymatgen.io.ase import AseAtomsAdaptor
 
     adjacency, numbers = bond_graph(atoms)
-    metals = np.flatnonzero(METAL_MASK[numbers])
+    all_metals = np.flatnonzero(METAL_MASK[numbers])
+    metals = select_sites(all_metals, site_cap)
     structure = AseAtomsAdaptor.get_structure(atoms)
 
     environments = {}
@@ -350,9 +365,12 @@ def analyse_structure(atoms, population, key, global_row, chemenv=True):
     for site in metals:
         site = int(site)
         record = {field: "" for field in SITE_FIELDS}
+        # Donor counts must stay numeric even when CrystalNN returns no neighbours,
+        # otherwise the SBU tests compare a string against an int.
+        record.update({field: 0 for field in SITE_FIELDS if field.startswith("n_donor_")})
         record.update(population=population, key=key, global_row=global_row,
                       site_index=site, element=chemical_symbols[numbers[site]],
-                      Z=int(numbers[site]))
+                      Z=int(numbers[site]), cn_crystalnn=0)
         try:
             info = _WORKER["crystal_nn"].get_nn_info(structure, site)
         except Exception:
@@ -385,15 +403,17 @@ def analyse_structure(atoms, population, key, global_row, chemenv=True):
             record["functional_groups"] = "|".join(
                 f"{name}:{count}" for name, count in groups.most_common())
         if site in environments:
+            # ChemEnv reports a symbol with csm=None when the strategy accepts an
+            # environment but cannot score it; keep the label, leave csm blank.
             record["ce_symbol"], csm = environments[site]
-            record["csm"] = round(float(csm), 3)
+            record["csm"] = round(float(csm), 3) if csm is not None else ""
         site_records.append(record)
 
     structure_record = {field: "" for field in STRUCTURE_FIELDS}
     structure_record.update(
         population=population, key=key, global_row=global_row,
         formula_hill=atoms.get_chemical_formula("hill"), n_atoms=len(atoms),
-        n_metals=int(metals.size),
+        n_metals=int(all_metals.size),
     )
     try:
         from pymatgen.symmetry.analyzer import SpacegroupAnalyzer
@@ -433,16 +453,34 @@ def analyse_structure(atoms, population, key, global_row, chemenv=True):
     return site_records, structure_record, radial_distribution(atoms)
 
 
+def safe_analyse(atoms, population, key, global_row, chemenv, site_cap):
+    """analyse_structure, but a single pathological structure cannot kill the run.
+
+    These are 3000 K AIMD snapshots; pymatgen occasionally raises deep inside
+    Voronoi or ChemEnv on a degenerate configuration.  Losing one structure out
+    of thousands is acceptable, losing the whole sweep is not, so failures are
+    counted and reported rather than propagated.
+    """
+    try:
+        return analyse_structure(atoms, population, key, global_row,
+                                 chemenv=chemenv, site_cap=site_cap)
+    except Exception as error:  # noqa: BLE001 - deliberate catch-all, see docstring
+        log(f"  skipped {population} {global_row}: {type(error).__name__} {error}")
+        return [], None, None
+
+
 def _mof_task(payload):
     from ase.io import Trajectory
 
-    traj_path, rows, keys, chemenv = payload
+    traj_path, rows, keys, chemenv, site_cap = payload
     traj = Trajectory(traj_path)
     sites, structures, rdfs = [], [], []
     try:
         for row, key in zip(rows, keys):
-            s, st, rdf = analyse_structure(traj[int(row)], "mof_off", key, int(row),
-                                           chemenv=chemenv)
+            s, st, rdf = safe_analyse(traj[int(row)], "mof_off", key, int(row),
+                                      chemenv, site_cap)
+            if st is None:
+                continue
             sites.extend(s)
             structures.append(st)
             rdfs.append(rdf)
@@ -454,7 +492,7 @@ def _mof_task(payload):
 def _omat_task(payload):
     from ase.db import connect
 
-    shard_index, rows, chemenv = payload
+    shard_index, rows, chemenv, site_cap = payload
     manifest = _WORKER["manifest"]
     entry = manifest[shard_index]
     local = np.asarray(rows, dtype=np.int64) - int(entry["global_start"])
@@ -464,8 +502,10 @@ def _omat_task(payload):
         ids = db.ids
         for lr, gr in zip(local, rows):
             atoms = db.get(id=ids[int(lr)]).toatoms()
-            s, st, rdf = analyse_structure(atoms, "omat_nb", str(int(gr)), int(gr),
-                                           chemenv=chemenv)
+            s, st, rdf = safe_analyse(atoms, "omat_nb", str(int(gr)), int(gr),
+                                      chemenv, site_cap)
+            if st is None:
+                continue
             sites.extend(s)
             structures.append(st)
             rdfs.append(rdf)
@@ -517,12 +557,13 @@ def command_analyse(args):
     mof_tasks = [
         (str(root / spec["traj"][0]), selected[start:start + chunk],
          [meta[int(r)]["record_id"] for r in selected[start:start + chunk]],
-         not args.no_chemenv)
+         not args.no_chemenv, args.site_cap)
         for start in range(0, selected.size, chunk)
     ]
     manifest_index, _ = locate(neighbour_rows, manifest, starts)
     omat_tasks = [
-        (int(s), neighbour_rows[manifest_index == s], not args.no_chemenv)
+        (int(s), neighbour_rows[manifest_index == s], not args.no_chemenv,
+         args.site_cap)
         for s in np.unique(manifest_index)
     ]
 
@@ -561,6 +602,7 @@ def command_analyse(args):
         },
         "rdf": {"max_r": RDF_MAX, "bins": RDF_BINS, "normalised": True},
         "chemenv_enabled": not args.no_chemenv,
+        "metal_sites_per_structure_cap": args.site_cap,
         "workers": args.workers,
     })
     log("coordination analysis complete")
@@ -902,6 +944,8 @@ def main():
     analyse.add_argument("--chunk", type=int, default=40)
     analyse.add_argument("--limit-mofs", type=int, default=0)
     analyse.add_argument("--no-chemenv", action="store_true")
+    analyse.add_argument("--site-cap", type=int, default=6,
+                         help="max metal sites analysed per structure (0 = all)")
     analyse.set_defaults(func=command_analyse)
 
     aggregate = sub.add_parser("aggregate")

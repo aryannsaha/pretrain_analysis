@@ -240,32 +240,54 @@ def plot_descriptor_ranges(analysis, figures):
     save(fig, figures / "descriptor_ranges.png")
 
 
-def plot_family_affinity(analysis, figures, query, title):
+def plot_family_affinity(analysis, figures, query, title, max_columns=16):
     path = analysis / f"family_affinity_{query}_lift.csv"
-    if not path.exists():
+    share_path = analysis / f"family_affinity_{query}_share.csv"
+    if not path.exists() or not share_path.exists():
         return
     rows = read_csv(path)
+    shares = read_csv(share_path)
     cols = [c for c in rows[0] if c not in ("query_family", "row_mass")]
+
+    # There are ~80 OMAT families and most carry almost no mass; showing all of
+    # them makes the panel unreadable and hides the ones that matter.  Keep the
+    # columns that actually receive links, ranked by total weighted share.
+    mass = np.array([sum(to_float(s[c]) * to_float(s["row_mass"]) for s in shares)
+                     for c in cols])
+    keep = np.argsort(-mass)[:max_columns]
+    keep = keep[np.argsort(-mass[keep])]
+    cols = [cols[i] for i in keep]
     matrix = np.array([[to_float(r[c]) for c in cols] for r in rows])
     labels = [f"{r['query_family']}  ({to_float(r['row_mass']):.0f})" for r in rows]
 
-    order = np.argsort(-matrix.max(axis=0))
-    matrix, cols = matrix[:, order], [cols[i] for i in order]
-    limit = float(np.nanmax(np.abs(matrix))) or 1.0
+    # Empty cells give log2(~0); clip to a robust range so a handful of extreme
+    # low-support cells cannot flatten the whole colour scale.
+    matrix = np.where(np.isfinite(matrix), matrix, np.nan)
+    limit = float(np.nanpercentile(np.abs(matrix), 98))
+    limit = limit if limit > 0 else 1.0
+    matrix = np.clip(matrix, -limit, limit)
 
-    fig, ax = plt.subplots(figsize=(0.62 * len(cols) + 5.0, 0.38 * len(rows) + 3.0))
+    fig, ax = plt.subplots(figsize=(0.62 * len(cols) + 6.0, 0.38 * len(rows) + 3.0))
     style(ax, title)
+    ax.grid(False)
     mesh = ax.pcolormesh(matrix, cmap="RdBu_r",
                          norm=TwoSlopeNorm(vmin=-limit, vcenter=0.0, vmax=limit),
                          edgecolors=SURFACE, linewidth=0.6)
+    for i in range(matrix.shape[0]):
+        for j in range(matrix.shape[1]):
+            if np.isfinite(matrix[i, j]) and abs(matrix[i, j]) >= 0.5 * limit:
+                ax.text(j + 0.5, i + 0.5, f"{matrix[i, j]:+.1f}", ha="center",
+                        va="center", fontsize=7,
+                        color="#ffffff" if abs(matrix[i, j]) > 0.75 * limit
+                        else TEXT_PRIMARY)
     ax.set_xticks(np.arange(len(cols)) + 0.5)
     ax.set_xticklabels(cols, rotation=45, ha="right", fontsize=8)
     ax.set_yticks(np.arange(len(labels)) + 0.5)
     ax.set_yticklabels(labels, fontsize=8)
     ax.invert_yaxis()
     bar = fig.colorbar(mesh, ax=ax, pad=0.015)
-    bar.set_label("log2 lift vs the overall OMAT family mix", color=TEXT_SECONDARY,
-                  fontsize=8.5)
+    bar.set_label(f"log2 lift vs the overall OMAT family mix (clipped at +-{limit:.1f})",
+                  color=TEXT_SECONDARY, fontsize=8.5)
     bar.ax.tick_params(colors=TEXT_SECONDARY, labelsize=8)
     save(fig, figures / f"family_affinity_{query}.png")
 
