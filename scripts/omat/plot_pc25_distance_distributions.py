@@ -92,7 +92,7 @@ def style(ax):
         ax.spines[side].set_visible(False)
     for side in ("left", "bottom"):
         ax.spines[side].set_color(GRID)
-    ax.tick_params(colors=INK_SOFT, labelsize=10, length=3)
+    ax.tick_params(length=3)
 
 
 def main():
@@ -128,7 +128,7 @@ def main():
             "n": int(summary["rows"]),
         })
 
-    fig, axes = plt.subplots(1, 3, figsize=(16.5, 5.4))
+    fig, axes = plt.subplots(1, 3, figsize=(16.5, 6.6))
     fig.patch.set_facecolor("white")
 
     # ---- A: cumulative distribution of d1 -----------------------------------
@@ -141,53 +141,46 @@ def main():
         x, y = ecdf(entry["d1"])
         ax.plot(x, y, color=entry["color"], linewidth=2.0, zorder=4,
                 label=entry["label"])
-        ax.text(x_at(x, y, height) * 1.18, height, entry["label"], color=INK,
-                fontsize=10, va="center", ha="left", zorder=5)
+        ax.text(x_at(x, y, height) * 1.18, height, entry["label"],
+                va="center", ha="left", zorder=5)
     for value, name, height in ((p95, "OMAT24 p95", 14), (p99, "p99", 46)):
         ax.axvline(value, color=INK_SOFT, linewidth=1.0, linestyle=":", zorder=2)
-        ax.text(value * 0.93, height, name, color=INK_SOFT, fontsize=9,
-                rotation=90, va="center", ha="center")
+        ax.text(value * 0.93, height, name, rotation=90, va="center", ha="center")
     ax.set_xscale("log")
     ax.set_xlim(0.01, 30)
     ax.set_ylim(0, 100)
-    ax.set_xlabel("$d_1$ — distance to nearest OMAT24 row", fontsize=11, color=INK_SOFT)
-    ax.set_ylabel("share of structures at or below (%)", fontsize=11, color=INK_SOFT)
-    ax.set_title("A · Where each dataset sits", fontsize=13, color=INK,
-                 loc="left", fontweight="bold", pad=10)
-    ax.text(0.02, -0.20, "further from OMAT24 →", transform=ax.transAxes,
-            fontsize=9.5, color=INK_SOFT)
+    ax.set_xlabel("$d_1$  (dimensionless, standardised embedding units)\n"
+                  "further from OMAT24 →")
+    ax.set_ylabel("share of structures at or below (%)")
+    ax.set_title("A · Where each dataset sits", loc="left", pad=10)
 
     # ---- B: novelty percentile against the uniform diagonal -----------------
     ax = axes[1]
     style(ax)
     ax.plot([0, 100], [0, 100], color=REFERENCE, linewidth=2.0,
             linestyle=(0, (5, 2)), zorder=3)
-    ax.text(52, 46, "OMAT24 = diagonal", color=INK_SOFT, fontsize=9.5,
-            rotation=38, ha="center", va="center")
+    # Kept low-left, where no query-set curve reaches, so it cannot collide.
+    ax.text(26, 30, "OMAT24 = diagonal", rotation=38, ha="center", va="center")
     for entry, height in zip(loaded, LABEL_HEIGHTS):
         x, y = ecdf(entry["percentile"])
         ax.plot(x, y, color=entry["color"], linewidth=2.0, zorder=4)
         # Labelled at a fixed height per series, left of the curve, so the
         # labels stay separated no matter how tightly the curves bunch.
-        ax.text(x_at(x, y, height) - 2.5, height, entry["label"], color=INK,
-                fontsize=10, va="center", ha="right", zorder=5)
+        ax.text(x_at(x, y, height) - 2.5, height, entry["label"],
+                va="center", ha="right", zorder=5)
     ax.set_xlim(0, 100)
     ax.set_ylim(0, 100)
-    ax.set_xlabel("$d_1$ as a percentile of OMAT24's own $d_1$",
-                  fontsize=11, color=INK_SOFT)
-    ax.set_ylabel("share of structures at or below (%)", fontsize=11, color=INK_SOFT)
-    ax.set_title("B · Same thing, normalised", fontsize=13, color=INK,
-                 loc="left", fontweight="bold", pad=10)
-    ax.text(0.02, -0.20, "below the diagonal = further out than OMAT24 is from itself",
-            transform=ax.transAxes, fontsize=9.5, color=INK_SOFT)
+    ax.set_xlabel("$d_1$ as a percentile of OMAT24's own $d_1$\n"
+                  "below the diagonal = further out than OMAT24 is from itself")
+    ax.set_ylabel("share of structures at or below (%)")
+    ax.set_title("B · Same thing, normalised", loc="left", pad=10)
 
     # ---- C: share beyond OMAT24 p95, by neighbour rank ----------------------
     ax = axes[2]
     style(ax)
     ks = np.arange(1, 11)
     ax.axhline(5.0, color=REFERENCE, linewidth=2.0, linestyle=(0, (5, 2)), zorder=3)
-    ax.text(1.0, 7.2, "OMAT24 = 5% (by construction)", color=INK_SOFT,
-            fontsize=9.5, va="bottom", ha="left")
+    ax.text(1.0, 7.2, "OMAT24 = 5% (by construction)", va="bottom", ha="left")
     ends = []
     for entry in loaded:
         shares = [
@@ -203,36 +196,46 @@ def main():
     for i in range(1, len(ends)):
         ends[i][0] = max(ends[i][0], ends[i - 1][0] + 2.6)
     for height, label in ends:
-        ax.text(10.4, height, label, color=INK, fontsize=10,
-                va="center", ha="left", zorder=5)
+        ax.text(10.4, height, label, va="center", ha="left", zorder=5)
     ax.set_xticks(ks)
     ax.set_xlim(0.4, 15.8)
     ax.set_ylim(0, 45)
-    ax.set_xlabel("neighbour rank $K$", fontsize=11, color=INK_SOFT)
-    ax.set_ylabel("structures beyond OMAT24's own p95 (%)",
-                  fontsize=11, color=INK_SOFT)
-    ax.set_title("C · One close match, or a neighbourhood?", fontsize=13,
-                 color=INK, loc="left", fontweight="bold", pad=10)
-    ax.text(0.02, -0.20, "falling curve = no single twin, but plenty of near-misses",
-            transform=ax.transAxes, fontsize=9.5, color=INK_SOFT)
+    ax.set_xlabel("neighbour rank $K$\n"
+                  "falling curve = no single twin, but plenty of near-misses")
+    ax.set_ylabel("structures beyond OMAT24's own p95 (%)")
+    ax.set_title("C · One close match, or a neighbourhood?", loc="left", pad=10)
 
     handles, labels = axes[0].get_legend_handles_labels()
     fig.legend(handles, labels, loc="lower center", ncol=4, frameon=False,
-               fontsize=10.5, labelcolor=INK, bbox_to_anchor=(0.5, -0.005))
+               bbox_to_anchor=(0.5, 0.115))
 
     counts = " · ".join(f"{e['label']} {e['n']:,}" for e in loaded)
     fig.suptitle(
         "How far each dataset sits from OMAT24 in the 25-PC UMA space",
-        fontsize=15.5, color=INK, x=0.5, y=0.99, fontweight="bold",
+        x=0.5, y=0.99,
     )
     fig.text(
         0.5, 0.935,
-        f"Euclidean distance, pc25 geometry · OMAT24 reference is 1,000,000 "
-        f"leave-one-out rows against all 100,824,585 · {counts}",
-        fontsize=10, color=INK_SOFT, ha="center",
+        f"OMAT24 reference is 1,000,000 leave-one-out rows against all "
+        f"100,824,585 · {counts}",
+        ha="center",
+    )
+    # What the axis actually measures.  Worth stating on the figure: a distance
+    # in a learned embedding space is easy to misread as a physical separation.
+    # Lines are kept short by hand because the note is wider than one panel.
+    fig.text(
+        0.5, 0.015,
+        "$d_K$ = Euclidean distance from a structure to its $K$-th nearest OMAT24 "
+        "row, in the 25-PC projection of the 128-d UMA embedding.\n"
+        "The embedding is a learned representation, so this distance is "
+        "dimensionless — not Ångströms.\n"
+        "Dimensions are standardised by OMAT24's own mean and standard deviation "
+        "before projection, so 1.0 is about one standard deviation; the 25 PCs "
+        "retain 79.7% of the variance.",
+        ha="center", va="bottom", linespacing=1.5,
     )
 
-    fig.tight_layout(rect=(0, 0.06, 1, 0.91))
+    fig.tight_layout(rect=(0, 0.23, 1, 0.91))
     fig.savefig(out, dpi=200, facecolor="white")
     print(f"wrote {out}", flush=True)
 
