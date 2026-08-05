@@ -8,6 +8,7 @@
                                 distribution, with and without trajectory twins
   4. pc_interpretation.png      R^2 of every retained PC against each descriptor
   5. rdf_similarity.png         independent similarity check on the retrieved pairs
+  6. soap_similarity.png        SOAP kernel check, split into chemistry and geometry
 
 Colour is fixed by entity, matching plot_pc25_top5_chemistry.py: MOF-off blue,
 its retrieved neighbours orange, OMAT24 references neutral grey.
@@ -238,6 +239,58 @@ def plot_rdf(analysis, figures):
     save(fig, figures / "rdf_similarity.png")
 
 
+def plot_soap(analysis, figures):
+    per_mof = read_csv(analysis / "soap_similarity_per_mof.csv")
+    summary = {(r["variant"], r["zeta"]): r
+               for r in read_csv(analysis / "soap_similarity.csv")}
+    metals = {r["mof_row"]: r["primary_metal"]
+              for r in read_csv(analysis / "per_mof_summary.csv")}
+
+    fig, axes = plt.subplots(1, 2, figsize=(13.5, 4.8),
+                             gridspec_kw={"width_ratios": [1, 1.15]})
+
+    ax = style(axes[0], "Paired SOAP similarity: neighbours minus random",
+               xlabel="per-MOF difference in SOAP cosine", ylabel="MOFs")
+    for key, label, colour in (("chem", "species-resolved (chemistry)", NEIGHBOUR),
+                               ("geom", "element-blind (geometry)", ACCENT)):
+        delta = np.array([to_float(r[f"{key}_matched_z1"]) - to_float(r[f"{key}_random_z1"])
+                          for r in per_mof])
+        ax.hist(delta, bins=70, color=colour, alpha=0.55, label=label,
+                edgecolor="none")
+        ax.axvline(float(np.median(delta)), color=colour, linewidth=1.8, linestyle="--")
+    ax.axvline(0, color=TEXT_PRIMARY, linewidth=1.2)
+    ax.set_xlim(-0.5, 0.6)
+    ax.legend(frameon=False, fontsize=8.5)
+    chem = summary.get(("species-resolved SOAP", "1"), {})
+    geom = summary.get(("element-blind SOAP", "1"), {})
+    ax.text(0.02, 0.97,
+            f"chemistry: median {to_float(chem.get('paired_delta_median', 'nan')):+.4f}, "
+            f"{to_float(chem.get('pct_mofs_matched_closer', 'nan')):.0f}% closer\n"
+            f"geometry:  median {to_float(geom.get('paired_delta_median', 'nan')):+.4f}, "
+            f"{to_float(geom.get('pct_mofs_matched_closer', 'nan')):.0f}% closer\n"
+            "dashed lines = medians",
+            transform=ax.transAxes, va="top", fontsize=8.5, color=TEXT_PRIMARY)
+
+    ax = style(axes[1], "Species-resolved SOAP gain by primary metal",
+               ylabel="median paired difference")
+    grouped = {}
+    for row in per_mof:
+        metal = metals.get(row["mof_row"])
+        if metal:
+            grouped.setdefault(metal, []).append(
+                to_float(row["chem_matched_z1"]) - to_float(row["chem_random_z1"]))
+    kept = [(m, v) for m, v in grouped.items() if len(v) >= 20]
+    kept.sort(key=lambda kv: -float(np.median(kv[1])))
+    values = [float(np.median(v)) for _, v in kept]
+    colours = [ACCENT if v > 0 else NEIGHBOUR for v in values]
+    ax.bar(range(len(kept)), values, color=colours, edgecolor=SURFACE, linewidth=0.5)
+    ax.axhline(0, color=TEXT_PRIMARY, linewidth=1.1)
+    ax.set_xticks(range(len(kept)))
+    ax.set_xticklabels([f"{m}\n({len(v)})" for m, v in kept], fontsize=8)
+    fig.tight_layout(w_pad=3.0)
+    save(fig, figures / "soap_similarity.png")
+
+
 def main():
     parser = argparse.ArgumentParser(description=__doc__,
                                      formatter_class=argparse.RawDescriptionHelpFormatter)
@@ -255,7 +308,8 @@ def main():
                      ("metal node", lambda: plot_metal_node(analysis, figures)),
                      ("calibration", lambda: plot_calibration(analysis, figures, args.root)),
                      ("PCs", lambda: plot_pcs(analysis, figures)),
-                     ("RDF", lambda: plot_rdf(analysis, figures))):
+                     ("RDF", lambda: plot_rdf(analysis, figures)),
+                     ("SOAP", lambda: plot_soap(analysis, figures))):
         try:
             fn()
         except FileNotFoundError as error:
