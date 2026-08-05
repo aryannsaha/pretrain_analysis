@@ -149,10 +149,10 @@ def main():
     ax.set_xscale("log")
     ax.set_xlim(0.01, 30)
     ax.set_ylim(0, 100)
-    ax.set_xlabel("$d_1$  (dimensionless, standardised embedding units)\n"
+    ax.set_xlabel("distance (via $d_1$, dimensionless, standardised embedding units)\n"
                   "further from OMAT24 →")
     ax.set_ylabel("share of structures at or below (%)")
-    ax.set_title("A · Where each dataset sits", loc="left", pad=10)
+    ax.set_title("Percentage of dataset with 1 neighbor within distance", loc="left", pad=10)
 
     # ---- B: novelty percentile against the uniform diagonal -----------------
     ax = axes[1]
@@ -173,7 +173,7 @@ def main():
     ax.set_xlabel("$d_1$ as a percentile of OMAT24's own $d_1$\n"
                   "below the diagonal = further out than OMAT24 is from itself")
     ax.set_ylabel("share of structures at or below (%)")
-    ax.set_title("B · Same thing, normalised", loc="left", pad=10)
+    ax.set_title("Normalised", loc="left", pad=10)
 
     # ---- C: share beyond OMAT24 p95, by neighbour rank ----------------------
     ax = axes[2]
@@ -203,7 +203,12 @@ def main():
     ax.set_xlabel("neighbour rank $K$\n"
                   "falling curve = no single twin, but plenty of near-misses")
     ax.set_ylabel("structures beyond OMAT24's own p95 (%)")
-    ax.set_title("C · One close match, or a neighbourhood?", loc="left", pad=10)
+    # Wrapped by hand: one line of this does not fit the panel width.  "95% of
+    # OMAT24 rows fall below" rather than "is d_K for 95% of rows" -- the
+    # threshold is a percentile, not a value those rows share.
+    ax.set_title("% of structures beyond $d_K$-at-p95, where $d_K$-at-p95 is\n"
+                 "the $d_K$ that 95% of OMAT24 rows fall below",
+                 loc="left", pad=10)
 
     handles, labels = axes[0].get_legend_handles_labels()
     fig.legend(handles, labels, loc="lower center", ncol=4, frameon=False,
