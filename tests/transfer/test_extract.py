@@ -15,7 +15,6 @@ import pytest
 
 from pretrain_analysis.transfer.extract import cache_paths, pool_features, sha256_file
 
-
 # --------------------------------------------------------------------------
 # pooling -- where a sum/mean mix-up would silently break the energy target
 # --------------------------------------------------------------------------

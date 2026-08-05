@@ -247,6 +247,22 @@ no label-free substitute that preserves what those estimators measure.
   deviation reported. If that spread is comparable to the between-model spread,
   the ranking is noise — see the `stability_*.png` figure.
 
+### 4.1 LogME is computed on the *validation* split, not the training split
+
+Both arms use the same LMDB the corresponding fine-tune passes as `valid_file`:
+`mof_off/R2SCAN/R2SCAN_val.lmdb` and `AM/val.lmdb`.
+
+The argument for this is that the quantity being predicted is the fine-tune's
+*validation* MAE, so the LogME target should be drawn from the distribution that
+metric is measured on. The argument against is that transferability is a
+property of the task the model will be trained on, which is the training split.
+
+For MOF-OFF the two splits are drawn from one pool, so the choice is immaterial.
+**For AM it is not**: `AM/train_small.lmdb` is 13% MPtrj / 87% sAlex, while
+`AM/val.lmdb` is sAlex only. Computing LogME on the training split would change
+the AM numbers. This is a defensible choice, not a free one, and re-running the
+AM arm against `train_small.lmdb` is a one-flag change worth doing as a check.
+
 *Note on the nested design:* because the pretraining subsets are nested random
 samples of one pool, the six models saw the **same data distribution**, differing
 only in sample size. So the distributional-distance baseline cannot distinguish

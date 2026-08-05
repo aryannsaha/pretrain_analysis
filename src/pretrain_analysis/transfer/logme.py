@@ -256,7 +256,7 @@ def _fit_one(
     converged = False
     n_iter = 0
 
-    for n_iter in range(1, max_iter + 1):
+    for n_iter in range(1, max_iter + 1):  # noqa: B007 - reported after the loop
         denom = alpha + beta * sigma_sq  # (rank,)
 
         gamma = float(np.sum(beta * sigma_sq / denom))

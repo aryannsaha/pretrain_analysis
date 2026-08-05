@@ -371,7 +371,7 @@ def gmm_log_likelihood(
     it = 0
     chols = [np.linalg.cholesky(c) for c in covs]
 
-    for it in range(1, max_iter + 1):
+    for it in range(1, max_iter + 1):  # noqa: B007 - reported after the loop
         # E step
         log_prob = _gmm_log_prob(s, means, chols, np.log(weights))
         ll_per_point = _logsumexp(log_prob, axis=1)

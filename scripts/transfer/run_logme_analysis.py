@@ -23,6 +23,7 @@ Example
 from __future__ import annotations
 
 import argparse
+import contextlib
 import json
 import logging
 import os
@@ -51,7 +52,10 @@ from pretrain_analysis.transfer.extract import (  # noqa: E402
     pool_features,
     sha256_file,
 )
-from pretrain_analysis.transfer.logme import LogMEConvergenceWarning, logme  # noqa: E402
+from pretrain_analysis.transfer.logme import (  # noqa: E402
+    LogMEConvergenceWarning,
+    logme,
+)
 
 LOGGER = logging.getLogger("logme_driver")
 
@@ -218,10 +222,10 @@ def logme_with_subsample_variance(
             idx = rng.choice(n, size=k, replace=False)
             with warnings.catch_warnings():
                 warnings.simplefilter("ignore", LogMEConvergenceWarning)
-                try:
+                # A subsample can be degenerate (constant target); drop it and
+                # let the reported n_subsamples show how many survived.
+                with contextlib.suppress(ValueError):
                     scores.append(logme(features[idx], targets[idx]).score)
-                except ValueError:
-                    pass
 
     return {
         "logme": full.score,

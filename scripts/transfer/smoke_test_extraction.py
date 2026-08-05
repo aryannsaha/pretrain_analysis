@@ -132,7 +132,7 @@ def main() -> int:
     print("\n-- invariant feature sets --")
     for name, arr in sorted(feats.items()):
         finite = np.isfinite(arr).all()
-        print(f"  {name:22s} {str(arr.shape):14s} finite={finite} "
+        print(f"  {name:22s} {arr.shape!s:14s} finite={finite} "
               f"std={arr.std():.4g}")
         if not finite:
             ok = False

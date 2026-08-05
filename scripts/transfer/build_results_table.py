@@ -164,22 +164,65 @@ def main() -> int:
     scores = pd.concat(frames, ignore_index=True)
     LOGGER.info("loaded %d LogME rows", len(scores))
 
-    usable = ft[ft.get("best_mae_e_per_atom").notna()] if "best_mae_e_per_atom" in ft else pd.DataFrame()
-    if usable.empty:
+    # ---- zero-shot ground truth (available before the fine-tunes finish) ---
+    zs_frames = []
+    for t in args.targets:
+        p = Path(args.logme_dir) / f"zeroshot_{t}.csv"
+        if p.exists():
+            zs_frames.append(pd.read_csv(p))
+    zeroshot = pd.concat(zs_frames, ignore_index=True) if zs_frames else pd.DataFrame()
+
+    merged = scores
+    truth_cols: list[str] = []
+
+    if not zeroshot.empty:
+        merged = merged.merge(
+            zeroshot[
+                ["target", "checkpoint", "force_mae",
+                 "energy_mae_per_atom_shifted", "energy_mae_per_atom_raw"]
+            ].rename(
+                columns={
+                    "force_mae": "zeroshot_force_mae",
+                    "energy_mae_per_atom_shifted": "zeroshot_energy_mae_shifted",
+                    "energy_mae_per_atom_raw": "zeroshot_energy_mae_raw",
+                }
+            ),
+            on=["target", "checkpoint"],
+            how="left",
+        )
+        truth_cols += ["zeroshot_force_mae", "zeroshot_energy_mae_shifted"]
+        LOGGER.info("joined zero-shot metrics for %d rows", len(zeroshot))
+
+    usable = (
+        ft[ft["best_mae_e_per_atom"].notna()]
+        if "best_mae_e_per_atom" in ft.columns
+        else pd.DataFrame()
+    )
+    if not usable.empty:
+        merged = merged.merge(
+            usable[["target", "checkpoint", "best_mae_e_per_atom", "best_mae_f"]],
+            on=["target", "checkpoint"],
+            how="left",
+        )
+        truth_cols += ["best_mae_e_per_atom", "best_mae_f"]
+    else:
         print(
-            "\n*** No fine-tune has logged a completed epoch yet, so no rank "
-            "correlation can be computed. The LogME and baseline scores are "
-            "final and written; re-run this script once the fine-tunes finish. ***"
+            "\n*** No fine-tune has logged a completed epoch yet, so the "
+            "post-fine-tune correlation cannot be computed. Falling back to "
+            "zero-shot error as the ground truth, which is a DIFFERENT and "
+            "weaker question -- see RESULTS.md. Re-run this script once the "
+            "fine-tunes finish. ***"
+        )
+
+    merged.to_csv(out_dir / "logme_scores_with_mae.csv", index=False)
+
+    if not truth_cols:
+        LOGGER.error(
+            "no ground truth available at all (neither zero-shot nor fine-tune); "
+            "run zeroshot_eval.py or wait for the fine-tunes"
         )
         scores.to_csv(out_dir / "logme_scores_all.csv", index=False)
         return 0
-
-    merged = scores.merge(
-        usable[["target", "checkpoint", "best_mae_e_per_atom", "best_mae_f"]],
-        on=["target", "checkpoint"],
-        how="left",
-    )
-    merged.to_csv(out_dir / "logme_scores_with_mae.csv", index=False)
 
     # ---- rank agreement, per (target, feature_set, pooling) ---------------
     predictor_cols = [
@@ -198,19 +241,22 @@ def main() -> int:
     for (target, fset, pooling), grp in merged.groupby(
         ["target", "feature_set", "pooling"]
     ):
-        grp = grp.dropna(subset=["best_mae_e_per_atom"])
-        if len(grp) < 3:
-            continue
-        for r in compare_predictors(
-            grp,
-            predictor_cols,
-            ["best_mae_e_per_atom", "best_mae_f"],
-            lower_is_better_predictors=LOWER_IS_BETTER,
-            n_bootstrap=args.n_bootstrap,
-        ):
-            d = r.as_dict()
-            d.update({"downstream": target, "feature_set": fset, "pooling": pooling})
-            results.append(d)
+        for truth in truth_cols:
+            sub = grp.dropna(subset=[truth])
+            if len(sub) < 3:
+                continue
+            for r in compare_predictors(
+                sub,
+                predictor_cols,
+                [truth],
+                lower_is_better_predictors=LOWER_IS_BETTER,
+                n_bootstrap=args.n_bootstrap,
+            ):
+                d = r.as_dict()
+                d.update(
+                    {"downstream": target, "feature_set": fset, "pooling": pooling}
+                )
+                results.append(d)
 
     corr = pd.DataFrame(results)
     corr_path = out_dir / "rank_correlations.csv"
@@ -226,19 +272,54 @@ def main() -> int:
         "Any correlation reported here should be read against that bar."
     )
 
-    if not corr.empty:
-        print("\n=== headline: weighted Kendall tau_w vs energy MAE ===")
-        head = (
-            corr[corr["target"] == "best_mae_e_per_atom"]
-            .sort_values("weighted_kendall", ascending=False)
-            .head(25)
-        )
+    if corr.empty:
+        return 0
+
+    show = ["downstream", "feature_set", "pooling", "predictor",
+            "weighted_kendall", "spearman", "perm_p_spearman", "n_models"]
+
+    for truth in truth_cols:
+        block = corr[corr["target"] == truth]
+        if block.empty:
+            continue
+        print(f"\n=== ranked by weighted Kendall tau_w, ground truth = {truth} ===")
         print(
-            head[
-                ["downstream", "feature_set", "pooling", "predictor",
-                 "weighted_kendall", "spearman", "perm_p_spearman", "n_models"]
-            ].to_string(index=False)
+            block.sort_values("weighted_kendall", ascending=False)
+            .head(20)[show]
+            .to_string(index=False)
         )
+
+    # The comparison the study exists to make: does LogME beat the dumb
+    # baseline and the linear probe, on the same rows?
+    print("\n=== LogME vs its baselines (best feature set per predictor) ===")
+    for truth in truth_cols:
+        block = corr[corr["target"] == truth]
+        if block.empty:
+            continue
+        best = (
+            block.sort_values("weighted_kendall", ascending=False)
+            .groupby("predictor", as_index=False)
+            .first()
+            .sort_values("weighted_kendall", ascending=False)
+        )
+        print(f"\n  ground truth = {truth}")
+        print(
+            best[["predictor", "weighted_kendall", "spearman",
+                  "perm_p_spearman", "feature_set", "pooling"]].to_string(index=False)
+        )
+        row_logme = best[best.predictor == "energy_logme"]
+        row_scale = best[best.predictor == "log_n_pretrain"]
+        row_ridge = best[best.predictor == "energy_ridge_r2"]
+        if not row_logme.empty and not row_scale.empty:
+            a = float(row_logme.weighted_kendall.iloc[0])
+            b = float(row_scale.weighted_kendall.iloc[0])
+            verdict = "BEATS" if a > b else "DOES NOT BEAT"
+            print(f"    LogME {verdict} log(N_pretrain):  {a:+.3f} vs {b:+.3f}")
+        if not row_logme.empty and not row_ridge.empty:
+            a = float(row_logme.weighted_kendall.iloc[0])
+            c = float(row_ridge.weighted_kendall.iloc[0])
+            verdict = "BEATS" if a > c else "DOES NOT BEAT"
+            print(f"    LogME {verdict} the ridge probe: {a:+.3f} vs {c:+.3f}")
     return 0
 
 
