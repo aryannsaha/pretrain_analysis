@@ -11,11 +11,12 @@ instead of producing a plausible wrong table.
 
 THE POINT OF THE OMAT24 ROWS
 ----------------------------
-Every external query set funnels into ``aimd-from-PBE-3000-nvt``.  That number
-means nothing without a reference for what *should* land there, and the obvious
-reference -- the subdataset's 7.776% share of the corpus -- is the wrong one,
-because the pc25 geometry is not neutral.  Three reference rows are built from
-the leave-one-out calibration (1,000,000 OMAT24 rows queried against all
+Every external query set funnels into ``aimd-from-PBE-3000-nvt`` -- 79% for the
+mildest (MatPES r2SCAN) up to 100% for MOF-off.  That number means nothing
+without a reference for what *should* land there, and the obvious reference --
+the subdataset's 7.776% share of the corpus -- is the wrong one, because the
+pc25 geometry is not neutral.  Three reference rows are built from the
+leave-one-out calibration (1,000,000 OMAT24 rows queried against all
 100,824,585, self-match dropped), each answering a different question:
 
   population share      7.776%   what a subdataset-blind retriever would return.
@@ -29,13 +30,18 @@ the leave-one-out calibration (1,000,000 OMAT24 rows queried against all
   OMAT24 outside        0.051%   what an OMAT24 row that is *not already*
   nvt-3000                       nvt-3000 retrieves.  This is the comparator for
                                  an external dataset, which is likewise foreign
-                                 to nvt-3000, and it is ~2000x smaller than the
-                                 91-100% the external sets show.
+                                 to nvt-3000, and it is three orders of magnitude
+                                 below what any external set shows.
 
-So the external sets are not merely enriched in nvt-3000 by 12x over its corpus
+So the external sets are not merely enriched in nvt-3000 by ~10x over its corpus
 share -- they enter a region that OMAT24's own non-nvt-3000 rows essentially
 never reach.  nvt-3000 (AIMD at 3000 K) is acting as the catch-all basin for
 structures unlike anything in the reference set, not as a genuine chemical match.
+
+The spread across query sets is itself informative: MatPES r2SCAN is the mildest
+case (79.3%, with 19.7% in ``rattled-relax``) and MOF-off the most extreme
+(100.0%, nothing anywhere else).  The runner-up is always ``rattled-relax``, the
+only other subdataset that is not a fixed-temperature MD trajectory.
 
 WHY THERE IS NO TRAJECTORY-EXCLUDED HEADLINE NUMBER
 ---------------------------------------------------
@@ -78,6 +84,9 @@ QUERY_SETS = [
     ("MOF-off PBE", f"{PROBE}/omat_knn_pc25_mof_off/MOF_off_PBE"),
     ("MAD", f"{PROBE}/omat_knn_pc25_mad/MAD_all"),
     ("MP ALOE", f"{PROBE}/omat_knn_pc25_mpaloe/MPALOE_all"),
+    # r2SCAN rows only. The parent matrix is 42% PBE -- see
+    # scripts/matpes/filter_matpes_latents_by_functional.py.
+    ("MatPES r2SCAN", f"{PROBE}/omat_knn_pc25_matpes/MatPES_r2SCAN"),
     ("AM Small", f"{PROBE}/omat_knn_pc25_final/AM_Small"),
     ("AM Full", f"{PROBE}/omat_knn_pc25_final/AM_Full"),
 ]
