@@ -11,7 +11,7 @@ instead of producing a plausible wrong table.
 
 THE POINT OF THE OMAT24 ROWS
 ----------------------------
-Every external query set funnels into ``aimd-from-PBE-3000-nvt`` -- 79% for the
+Every external query set funnels into ``aimd-from-PBE-3000-nvt`` -- 87% for the
 mildest (MatPES r2SCAN) up to 100% for MOF-off.  That number means nothing
 without a reference for what *should* land there, and the obvious reference --
 the subdataset's 7.776% share of the corpus -- is the wrong one, because the
@@ -39,9 +39,28 @@ never reach.  nvt-3000 (AIMD at 3000 K) is acting as the catch-all basin for
 structures unlike anything in the reference set, not as a genuine chemical match.
 
 The spread across query sets is itself informative: MatPES r2SCAN is the mildest
-case (79.3%, with 19.7% in ``rattled-relax``) and MOF-off the most extreme
-(100.0%, nothing anywhere else).  The runner-up is always ``rattled-relax``, the
-only other subdataset that is not a fixed-temperature MD trajectory.
+case (87.1% of top-5 slots, with 12.1% in ``rattled-relax``) and MOF-off the most
+extreme (100.0%, nothing anywhere else).  The runner-up is always
+``rattled-relax``, the only other subdataset that is not a fixed-temperature MD
+trajectory.
+
+ATOM-COUNT SENSITIVITY
+----------------------
+The MatPES row moved substantially when its query set was corrected, and in the
+direction opposite to the obvious guess.  The earlier run (``omat_knn_pc25_matpes``)
+used the ``mace_matpes_test_full`` r2SCAN subset: 161,262 frames, every one of
+them 4 atoms or fewer.  The full set is 387,897 frames spanning 1-240 atoms.
+
+    <=4 atoms   79.3% nvt-3000, 19.7% rattled-relax, d1 median 0.338
+    full        88.6% nvt-3000, 10.8% rattled-relax, d1 median 0.359  (rank 1)
+
+Restricting to small cells nearly doubles the ``rattled-relax`` share.  That is
+consistent with ``rattled-relax`` being where OMAT24's small relaxation cells
+live, so a small-cell query set finds real neighbours there; once large cells are
+included the nvt-3000 basin reasserts itself.  The practical lesson is that this
+statistic is sensitive to the atom-count distribution of the query set, so a
+query set that is a size-restricted subset of its nominal dataset will
+under-report nvt-3000 dominance.
 
 WHY THERE IS NO TRAJECTORY-EXCLUDED HEADLINE NUMBER
 ---------------------------------------------------
@@ -84,9 +103,12 @@ QUERY_SETS = [
     ("MOF-off PBE", f"{PROBE}/omat_knn_pc25_mof_off/MOF_off_PBE"),
     ("MAD", f"{PROBE}/omat_knn_pc25_mad/MAD_all"),
     ("MP ALOE", f"{PROBE}/omat_knn_pc25_mpaloe/MPALOE_all"),
-    # r2SCAN rows only. The parent matrix is 42% PBE -- see
-    # scripts/matpes/filter_matpes_latents_by_functional.py.
-    ("MatPES r2SCAN", f"{PROBE}/omat_knn_pc25_matpes/MatPES_r2SCAN"),
+    # The whole of MatPES-R2SCAN-2025.1: 387,897 frames, 100% r2SCAN, atoms
+    # 1-240, via data/processed/matpes/all.lmdb.  NOT the earlier
+    # omat_knn_pc25_matpes run, which used the mace_matpes_test_full r2SCAN
+    # subset -- mixed-functional parent, capped at 4 atoms.  See ATOM-COUNT
+    # SENSITIVITY below for why that distinction changes the number.
+    ("MatPES r2SCAN", f"{PROBE}/omat_knn_pc25_matpes_all/MatPES_r2SCAN_all"),
     ("AM Small", f"{PROBE}/omat_knn_pc25_final/AM_Small"),
     ("AM Full", f"{PROBE}/omat_knn_pc25_final/AM_Full"),
 ]
