@@ -7,9 +7,11 @@ reads model.atomic_numbers / model.r_max / model.heads. UMA ships a fairchem
 inference checkpoint instead, so inference is done here through
 pretrained_mlip.load_predict_unit + FAIRChemCalculator.
 
-Everything downstream is shared with the MACE pipeline: the same long-form CSV
-schema (CSV_HEADER) and the same make_parity_plot, so figures and the
-MAX_DFT_FORCE_EV_PER_A frame filter stay identical across model families.
+Everything that affects the numbers is shared with the MACE pipeline: the same
+long-form CSV schema (CSV_HEADER) and the same summarize_csv, so MAEs, reservoir
+sampling and the MAX_DFT_FORCE_EV_PER_A frame filter are identical across model
+families. Only the figure is drawn locally, so the y-axis can say UMA rather
+than the MACE plotter's hardcoded label.
 """
 
 from __future__ import annotations
@@ -29,7 +31,10 @@ REPO = Path("/scratch/gpfs/ROSENGROUP/aryan/pretrain_analysis")
 # parity pipeline is untracked there, so a worktree copy would not have it.
 sys.path.insert(0, str(REPO))
 
-from scripts.evaluate_mace_parity_batched import make_parity_plot  # noqa: E402
+from scripts.evaluate_mace_parity_batched import (  # noqa: E402
+    MAX_DFT_FORCE_EV_PER_A,
+    summarize_csv,
+)
 from scripts.internal.mace_parity_inference import (  # noqa: E402
     CSV_HEADER,
     STRESS_COMPONENTS,
@@ -151,6 +156,69 @@ def run_inference(
         "force_rows": counts["atoms"] * 3,
         "stress_rows": counts["stress_frames"] * len(STRESS_COMPONENTS),
         "seconds": round(time.time() - started, 3),
+    }
+
+
+def make_parity_plot(
+    csv_path: Path,
+    output_path: Path,
+    sample_size: int,
+    title: str,
+    model_name: str = "UMA",
+) -> dict:
+    """Same figure as the MACE pipeline, with the y-axis named for this model.
+
+    Statistics come from the shared summarize_csv, so MAEs, reservoir sampling
+    and the MAX_DFT_FORCE_EV_PER_A frame filter are identical to the MACE plots
+    by construction; only the axis label differs.
+    """
+    import matplotlib
+
+    matplotlib.use("Agg")
+    import matplotlib.pyplot as plt
+
+    summaries, _raw_counts, excluded_frames = summarize_csv(csv_path, sample_size)
+    energy = summaries["energy_eV_per_atom"]
+    force = summaries["force_eV_per_A"]
+    stress = summaries["stress_eV_per_A3"]
+
+    panels = [
+        (energy, "energy (eV/atom)"),
+        (force, "force component (eV/A)"),
+    ]
+    if stress.count:
+        panels.append((stress, "stress component (eV/A^3)"))
+
+    figure, axes = plt.subplots(1, len(panels), figsize=(5 * len(panels), 4))
+    for axis, (summary, label) in zip(np.atleast_1d(axes), panels, strict=False):
+        points = np.asarray(summary.sample)
+        limits = summary.limits
+        axis.scatter(points[:, 0], points[:, 1], s=4, alpha=0.25, rasterized=True)
+        axis.plot(limits, limits, "k--", linewidth=1)
+        axis.set(
+            xlim=limits,
+            ylim=limits,
+            aspect="equal",
+            xlabel=f"DFT {label}",
+            ylabel=f"{model_name} {label}",
+            title=f"{label}\nMAE = {summary.mae:.3g} ({energy.count:,} structures)",
+        )
+    figure.suptitle(title)
+    figure.tight_layout()
+    figure.savefig(output_path, format="png", dpi=200)
+    plt.close(figure)
+
+    return {
+        "energy_mae_eV_per_atom": energy.mae,
+        "force_mae_eV_per_A": force.mae,
+        "stress_mae_eV_per_A3": stress.mae if stress.count else None,
+        "energy_points": energy.count,
+        "force_points": force.count,
+        "stress_points": stress.count,
+        "sample_size": sample_size,
+        "included_frames": energy.count,
+        "excluded_frames": excluded_frames,
+        "max_dft_force_eV_per_A": MAX_DFT_FORCE_EV_PER_A,
     }
 
 
