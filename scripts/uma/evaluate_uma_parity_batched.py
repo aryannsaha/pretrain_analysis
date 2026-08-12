@@ -44,16 +44,30 @@ from scripts.internal.mace_parity_inference import (  # noqa: E402
     write_json,
 )
 
-RUN = "uma-s-1p1_hse25_matpes_1to3_uc_efs_20260811"
+HSE25 = REPO / "data/processed/hse_matpes/HSE25"
+UMA_RUNS = REPO / "runs/uma"
+RUN_1TO3 = "uma-s-1p1_hse25_matpes_1to3_uc_efs_20260811"
+RUN_1AND2 = "uma-s-1p1_hse25_matpes_1and2_uc_all_efs_20260811"
+
+# "task" is dataset_name from configs/uma/data/<run>_data.yaml; it is also the
+# wandb metric prefix (val/omat.val,*).
 EVALUATIONS = [
     {
-        "model": REPO / f"runs/uma/hse25_matpes_1to3_uc/{RUN}/checkpoints/final/inference_ckpt.pt",
-        "data": REPO / "data/processed/hse_matpes/HSE25/hse_matpes_1to3_uc_val.lmdb",
-        "output_dir": REPO / f"runs/uma_parity/initial/hse25_1to3_uc__{RUN}__val",
-        # dataset_name from configs/uma/data/<run>_data.yaml; also the wandb
-        # metric prefix (val/omat.val,*).
+        "model": UMA_RUNS / f"hse25_matpes_1to3_uc/{RUN_1TO3}/checkpoints/final/inference_ckpt.pt",
+        "data": HSE25 / "hse_matpes_1to3_uc_val.lmdb",
+        "output_dir": REPO / f"runs/uma_parity/initial/hse25_1to3_uc__{RUN_1TO3}__val",
         "task": "omat",
-    }
+    },
+    {
+        # WARNING: this run trained on hse_matpes_1and2_uc_all.lmdb, and all
+        # 6,274 sids of hse_matpes_1and2_uc_val.lmdb are contained in it. The
+        # split is therefore seen data -- read this panel as fit quality, not
+        # as a generalization measure. (1to3 above is clean: train/val overlap 0.)
+        "model": UMA_RUNS / f"hse25_matpes_1and2_uc_all/{RUN_1AND2}/checkpoints/final/inference_ckpt.pt",
+        "data": HSE25 / "hse_matpes_1and2_uc_val.lmdb",
+        "output_dir": REPO / f"runs/uma_parity/initial/hse25_1and2_uc_all__{RUN_1AND2}__val",
+        "task": "omat",
+    },
 ]
 PLOT_DIR = REPO / "runs/uma_parity/initial_pub"
 DEVICE, MAX_FRAMES = "cuda", None
@@ -235,10 +249,22 @@ def main() -> None:
         "name. Use for smoke tests so they cannot be mistaken for a full run.",
     )
     parser.add_argument("--force", action="store_true", help="Ignore any cached CSV")
+    parser.add_argument(
+        "--only",
+        help="Run only evaluations whose output directory name contains this substring",
+    )
     args = parser.parse_args()
 
+    selected = [
+        evaluation
+        for evaluation in EVALUATIONS
+        if args.only is None or args.only in Path(evaluation["output_dir"]).name
+    ]
+    if not selected:
+        raise SystemExit(f"--only {args.only!r} matched none of {len(EVALUATIONS)} evaluations")
+
     args.plot_dir.mkdir(parents=True, exist_ok=True)
-    for evaluation in EVALUATIONS:
+    for evaluation in selected:
         model_path = Path(evaluation["model"])
         data_path = Path(evaluation["data"])
         output_dir = Path(evaluation["output_dir"])
