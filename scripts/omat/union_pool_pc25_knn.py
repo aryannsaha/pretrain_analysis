@@ -689,6 +689,81 @@ def markdown_table(title: str, note: str, labels, population, rows) -> str:
     return "\n".join(lines)
 
 
+def short_label(name: str) -> str:
+    """Compact column header, matching pc_dimension_subdataset_table.py's convention."""
+    return name.replace("aimd-from-PBE-", "aimd").replace("rattled-", "rat")
+
+
+def thousands(value: int) -> str:
+    """Thousands separator for math mode; a bare comma sets wrong spacing there."""
+    return f"{value:,}".replace(",", "{,}")
+
+
+def mathjax_table(title: str, note: str, labels, population, rows, order) -> str:
+    """One LaTeX array per panel, columns ordered by pool size (largest first)."""
+    union = int(population.sum())
+    head = " & ".join(rf"\textbf{{{short_label(labels[i])}}}" for i in order)
+    out = [f"## {title}", "", note, "", "$$",
+           r"\begin{array}{lr" + "r" * len(order) + "}", r"\hline",
+           rf"\textbf{{population}} & \textbf{{queries}} & {head} \\", r"\hline"]
+    pop = shares(population)
+    cells = " & ".join(f"{pop[i]:.3f}" for i in order)
+    out.append(rf"\text{{union pool (population)}} & {thousands(union)} & {cells} \\")
+    out.append(r"\hline")
+    for name, count, share in rows:
+        cells = " & ".join(f"{share[i]:.3f}" for i in order)
+        label = name.replace("aimd-from-PBE-3000-nvt", "aimd3000-nvt")
+        out.append(rf"\text{{{label}}} & {thousands(count)} & {cells} \\")
+    out += [r"\hline", r"\end{array}", "$$", ""]
+    return "\n".join(out)
+
+
+def command_mathjax(args: argparse.Namespace) -> None:
+    """Re-emit the three panels as MathJax arrays from the stored CSV."""
+    manifest = OmatManifest(OMAT_MANIFEST)
+    layout = segments()
+    labels, population = pool_labels(manifest, layout)
+    order = sorted(range(len(labels)), key=lambda i: -population[i])
+
+    source = OUT_ROOT / "union_pool_subdataset_shares.csv"
+    if not source.is_file():
+        raise SystemExit(f"missing {source}; run `table` first")
+    panels: dict[str, list] = {}
+    with source.open() as handle:
+        reader = csv.reader(handle)
+        header = next(reader)
+        if header[3:] != labels:
+            raise SystemExit("CSV columns disagree with the pool layout")
+        for row in reader:
+            if row[0] == "population":
+                continue
+            panels.setdefault(row[0], []).append(
+                (row[1], int(row[2]), np.array([float(x) for x in row[3:]])))
+
+    titles = {
+        "A_self_excluded": ("Panel A -- self-excluded",
+                            "Every pool row is a candidate except the query's own row."),
+        "B_corpus_excluded": ("Panel B -- own corpus excluded",
+                              "The query's entire own corpus is removed from the pool; for the "
+                              "OMAT24 rows that means the whole OMAT24 half."),
+        "C_duplicates_excluded": (f"Panel C -- near-duplicates excluded (d < {DUP_TOL:g})",
+                                  "Panel A minus every pool row that is the query restated. "
+                                  "The threshold is measured from 100,000 known same-structure "
+                                  "AM Small / AM Full pairs (median 1.3e-6, max 1.11e-4)."),
+    }
+    body = ["# pc25 top-5 neighbour attribution over the union pool (MathJax)", "",
+            f"Pool = OMAT24 train ({manifest.total:,}) plus every external corpus "
+            f"({external_rows():,}) = **{int(population.sum()):,} rows**.  Columns are ordered "
+            f"by pool size, largest first; the first data row is the size-blind null.  All "
+            f"values are percentages of top-5 neighbour slots.", ""]
+    for key, (title, note) in titles.items():
+        if key in panels:
+            body.append(mathjax_table(title, note, labels, population, panels[key], order))
+    target = OUT_ROOT / "union_pool_subdataset_shares_mathjax.md"
+    target.write_text("\n".join(body) + "\n")
+    log(f"Wrote {target}")
+
+
 def provenance_section(meta: dict) -> str:
     """How the numbers were produced and how far they can be trusted."""
     lines = ["## Provenance and accuracy", "",
@@ -836,6 +911,9 @@ def main() -> None:
 
     p = sub.add_parser("table", help="merge with the stored OMAT side and write the table")
     p.set_defaults(func=command_table)
+
+    p = sub.add_parser("mathjax", help="re-emit the panels as MathJax arrays")
+    p.set_defaults(func=command_mathjax)
 
     args = parser.parse_args()
     args.func(args)
