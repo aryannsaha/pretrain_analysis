@@ -35,7 +35,9 @@ from matplotlib.lines import Line2D
 ROOT = Path(__file__).resolve().parents[2]
 
 DEFAULT_SUBDATASET = "aimd-from-PBE-3000-nvt"
-DEFAULT_RANGES = ["pc1_lt_0.75:-inf:0.75", "pc1_gt_0:0:inf"]
+# The nvt-3000 cloud has a dense island left of PC1 = 0 and a diffuse fan to the right;
+# PC1 < -0.75 isolates the island, PC1 > 0 the fan.
+DEFAULT_RANGES = ["pc1_lt_-0.75:-inf:-0.75", "pc1_gt_0:0:inf"]
 MARKERS = ["o", "^", "s", "D", "P", "X"]
 MARKER_COLORS = ["#1f77b4", "#117733", "#9467bd", "#000000", "#ff7f0e", "#17becf"]
 # Label offsets in points, fanned so up to six neighbouring markers get distinct label positions.
