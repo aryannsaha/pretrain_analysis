@@ -419,12 +419,14 @@ def summarize(acc: Accumulator) -> dict:
     }
 
 
-def rebin_density(channel: Channel, new_edges: np.ndarray, log_x: bool) -> np.ndarray:
-    """Density on new_edges by interpolating the CDF; per decade when log_x."""
+def rebin_fraction(channel: Channel, new_edges: np.ndarray) -> np.ndarray:
+    """Fraction of the channel's values in each new bin, by interpolating the CDF."""
     edges, cum = cdf(channel)
-    counts = np.diff(np.interp(new_edges, edges, cum))
-    widths = np.diff(np.log10(new_edges) if log_x else new_edges)
-    return counts / max(channel.mom[0], 1.0) / widths
+    return np.diff(np.interp(new_edges, edges, cum)) / max(channel.mom[0], 1.0)
+
+
+def rebin_density(channel: Channel, new_edges: np.ndarray) -> np.ndarray:
+    return rebin_fraction(channel, new_edges) / np.diff(new_edges)
 
 
 def fmt(value: float, digits: int = 4) -> str:
@@ -485,14 +487,14 @@ def style_axes(ax) -> None:
 
 
 def small_multiples(accs, total, summary, output_dir, *, channel, stem, title, xlabel, ylabel,
-                    lo, hi, log_x=False, log_y=False, note_stats=("mean", "std"), note_side="right"):
+                    lo, hi, log_y=False, note_stats=("mean", "std"), note_side="right"):
     import matplotlib.pyplot as plt
     from matplotlib.lines import Line2D
     from matplotlib.patches import Patch
 
-    edges = np.logspace(np.log10(lo), np.log10(hi), 241) if log_x else np.linspace(lo, hi, 241)
-    centers = np.sqrt(edges[1:] * edges[:-1]) if log_x else 0.5 * (edges[1:] + edges[:-1])
-    reference = rebin_density(total.channels[channel], edges, log_x)
+    edges = np.linspace(lo, hi, 241)
+    centers = 0.5 * (edges[1:] + edges[:-1])
+    reference = rebin_density(total.channels[channel], edges)
     panels = [s for s in ORDER if s in accs] + [ALL]
 
     fig, axes = plt.subplots(3, 4, figsize=(15, 9.2), sharex=True, sharey=True, facecolor=SURFACE)
@@ -501,7 +503,7 @@ def small_multiples(accs, total, summary, output_dir, *, channel, stem, title, x
     for ax, sub in zip(axes.ravel(), panels):
         style_axes(ax)
         acc = total if sub == ALL else accs[sub]
-        density = rebin_density(acc.channels[channel], edges, log_x)
+        density = rebin_density(acc.channels[channel], edges)
         if log_y:
             ax.plot(centers, np.where(density > 0, density, np.nan), color=COLORS[sub], linewidth=1.6)
         else:
@@ -517,8 +519,6 @@ def small_multiples(accs, total, summary, output_dir, *, channel, stem, title, x
                 ha=note_side, va="top", fontsize=6.8, color=INK_2, linespacing=1.35)
         ax.set_title("all OMAT24 train, pooled" if sub == ALL else sub,
                      fontsize=9, color=INK, loc="left", pad=4)
-        if log_x:
-            ax.set_xscale("log")
         if log_y:
             ax.set_yscale("log")
     for ax in axes[-1]:
@@ -533,6 +533,66 @@ def small_multiples(accs, total, summary, output_dir, *, channel, stem, title, x
                frameon=False, fontsize=8, labelcolor=INK_2)
     fig.suptitle(title, x=0.015, y=0.985, ha="left", fontsize=12, color=INK)
     fig.tight_layout(rect=(0, 0, 1, 0.955))
+    fig.savefig(output_dir / f"{stem}.png", dpi=200, facecolor=SURFACE)
+    plt.close(fig)
+    print(f"wrote {output_dir / (stem + '.png')}", flush=True)
+
+
+def short_name(sub: str) -> str:
+    return "all OMAT24\npooled" if sub == ALL else sub.replace("aimd-from-PBE-", "aimd-")
+
+
+def value_violins(accs, total, summary, output_dir, *, channel, stem, title, ylabel):
+    """One violin per subdataset with the quantity itself on a log y axis.
+
+    Violin width is the share of values at that height, each violin scaled to its
+    own widest point; the markers are p1-p99 (thin), p25-p75 (bar) and the median.
+    """
+    import matplotlib.pyplot as plt
+
+    columns = [s for s in ORDER if s in accs] + [ALL]
+    stats = {sub: summary[sub]["channels"][channel] for sub in columns}
+    lo = 10 ** math.floor(math.log10(min(s["p0.1"] for s in stats.values())))
+    top = max(s["max"] for s in stats.values())
+    edges = np.logspace(math.log10(lo), math.log10(top), 221)
+    centers = np.sqrt(edges[1:] * edges[:-1])
+
+    fig, ax = plt.subplots(figsize=(15, 6.8), facecolor=SURFACE)
+    style_axes(ax)
+    ax.grid(axis="x", visible=False)
+    for x, sub in enumerate(columns):
+        acc = total if sub == ALL else accs[sub]
+        share = rebin_fraction(acc.channels[channel], edges)
+        filled = np.flatnonzero(share > 0)  # draw only where this subdataset has values
+        span = slice(filled[0], filled[-1] + 1)
+        half, height = 0.42 * share[span] / share.max(), centers[span]
+        ax.fill_betweenx(height, x - half, x + half, color=COLORS[sub], alpha=0.30, linewidth=0)
+        ax.plot(np.concatenate([x - half, (x + half)[::-1]]), np.concatenate([height, height[::-1]]),
+                color=COLORS[sub], linewidth=1.0)
+        s = stats[sub]
+        ax.plot([x, x], [s["p1"], s["p99"]], color=INK, linewidth=1.0)
+        ax.plot([x, x], [s["p25"], s["p75"]], color=INK, linewidth=4.5, solid_capstyle="round")
+        ax.plot(x, s["p50"], "o", markersize=6, color=SURFACE, markeredgecolor=INK, markeredgewidth=1.4)
+        ax.plot([x - 0.16, x + 0.16], [s["max"], s["max"]], color=MUTED, linewidth=1.2)
+        ax.text(x, 1.035, fmt(s["p50"], 3), transform=ax.get_xaxis_transform(), ha="center",
+                va="bottom", fontsize=8, color=INK)
+        ax.text(x, 1.0, f"p99 {fmt(s['p99'], 3)}", transform=ax.get_xaxis_transform(), ha="center",
+                va="bottom", fontsize=7, color=INK_2)
+    ax.text(-0.62, 1.035, "median", transform=ax.get_xaxis_transform(), ha="right", va="bottom",
+            fontsize=8, color=INK_2)
+    ax.set_yscale("log")
+    ax.set_ylim(lo, top * 1.6)
+    ax.set_xlim(-0.6, len(columns) - 0.4)
+    ax.set_xticks(range(len(columns)))
+    ax.set_xticklabels([short_name(s) for s in columns], fontsize=8, color=INK, rotation=25, ha="right",
+                       rotation_mode="anchor")
+    ax.tick_params(axis="y", labelsize=8)
+    ax.set_ylabel(ylabel, fontsize=9.5, color=INK_2)
+    fig.suptitle(title, x=0.015, y=0.985, ha="left", fontsize=12, color=INK)
+    fig.text(0.015, 0.925, "violin width: share of values at that height (each violin scaled to its own widest "
+             "point)   |   thin line p1-p99, bar p25-p75, open dot median, grey dash maximum",
+             fontsize=8, color=INK_2, ha="left")
+    fig.tight_layout(rect=(0, 0, 1, 0.90))
     fig.savefig(output_dir / f"{stem}.png", dpi=200, facecolor=SURFACE)
     plt.close(fig)
     print(f"wrote {output_dir / (stem + '.png')}", flush=True)
@@ -553,7 +613,7 @@ def normal_vs_shear(accs, total, summary, output_dir, lo, hi):
         style_axes(ax)
         acc = total if sub == ALL else accs[sub]
         for name, color, _ in series:
-            density = rebin_density(acc.channels[name], edges, False)
+            density = rebin_density(acc.channels[name], edges)
             ax.plot(centers, np.where(density > 0, density, np.nan), color=color, linewidth=1.6)
         ch = summary[sub]["channels"]
         ax.text(0.97, 0.95, f"normal std {fmt(ch['s_normal'].get('std'))}\n"
@@ -647,31 +707,22 @@ def reduce_partitions(args: argparse.Namespace) -> None:
                     title="OMAT24 energy per atom by subdataset", xlabel="energy per atom (eV/atom)",
                     ylabel="density (atom/eV)", lo=nice(pool["e_per_atom"]["p0.1"], 0.5, False),
                     hi=nice(pool["e_per_atom"]["p99.9"], 0.5, True), note_stats=("mean", "std", "min", "max"))
-    small_multiples(**common, channel="f_norm", stem="force_norm_per_atom",
-                    title="OMAT24 per-atom force magnitude by subdataset", xlabel="|F| per atom (eV/A)",
-                    ylabel="density per decade", lo=1e-3,
-                    hi=10 ** math.ceil(math.log10(pool["f_norm"]["max"])), log_x=True,
-                    note_stats=("rms", "p50", "p99", "max"))
+    value_violins(**common, channel="f_norm", stem="force_norm_per_atom",
+                  title="OMAT24 per-atom force magnitude by subdataset", ylabel="|F| per atom (eV/A)")
     span = nice(max(abs(pool["f_comp"]["p0.1"]), pool["f_comp"]["p99.9"]), 1.0, True)
     small_multiples(**common, channel="f_comp", stem="force_components",
                     title="OMAT24 force components (x, y, z pooled) by subdataset",
                     xlabel="force component (eV/A)", ylabel="density (A/eV)", lo=-span, hi=span,
                     log_y=True, note_stats=("std", "mean_abs", "min", "max"))
-    small_multiples(**common, channel="f_max_frame", stem="force_max_per_frame",
-                    title="OMAT24 largest |F| in each frame by subdataset", xlabel="max |F| in frame (eV/A)",
-                    ylabel="density per decade", lo=1e-3,
-                    hi=10 ** math.ceil(math.log10(pool["f_max_frame"]["max"])), log_x=True,
-                    note_stats=("p50", "p95", "p99", "max"))
+    value_violins(**common, channel="f_max_frame", stem="force_max_per_frame",
+                  title="OMAT24 largest |F| in each frame by subdataset", ylabel="max |F| in frame (eV/A)")
     s_lo, s_hi = nice(pool["s_hydro"]["p0.1"], 5.0, False), nice(pool["s_hydro"]["p99.9"], 5.0, True)
     small_multiples(**common, channel="s_hydro", stem="stress_hydrostatic",
                     title="OMAT24 mean normal stress tr(sigma)/3 by subdataset (sign as stored)",
                     xlabel="tr(sigma)/3 (GPa)", ylabel="density (1/GPa)", lo=s_lo, hi=s_hi, log_y=True,
                     note_stats=("mean", "std", "min", "max"), note_side="left")
-    small_multiples(**common, channel="s_vonmises", stem="stress_von_mises",
-                    title="OMAT24 von Mises stress by subdataset", xlabel="von Mises stress (GPa)",
-                    ylabel="density per decade", lo=1e-3,
-                    hi=10 ** math.ceil(math.log10(pool["s_vonmises"]["max"])), log_x=True,
-                    note_stats=("p50", "p95", "p99", "max"))
+    value_violins(**common, channel="s_vonmises", stem="stress_von_mises",
+                  title="OMAT24 von Mises stress by subdataset", ylabel="von Mises stress (GPa)")
     c_span = nice(max(abs(pool["s_normal"]["p0.1"]), pool["s_normal"]["p99.9"]), 5.0, True)
     normal_vs_shear(accs, total, summary, figures, -c_span, c_span)
     percentile_ranges(summary, figures)
