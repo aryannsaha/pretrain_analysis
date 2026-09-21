@@ -485,7 +485,7 @@ def style_axes(ax) -> None:
 
 
 def small_multiples(accs, total, summary, output_dir, *, channel, stem, title, xlabel, ylabel,
-                    lo, hi, log_x=False, log_y=False, note_stats=("mean", "std")):
+                    lo, hi, log_x=False, log_y=False, note_stats=("mean", "std"), note_side="right"):
     import matplotlib.pyplot as plt
     from matplotlib.lines import Line2D
     from matplotlib.patches import Patch
@@ -513,8 +513,8 @@ def small_multiples(accs, total, summary, output_dir, *, channel, stem, title, x
         stats = summary[sub]["channels"][channel]
         note = f"{summary[sub]['frames']:,} frames\n" + "\n".join(
             f"{k} {fmt(stats.get(k))}" for k in note_stats)
-        ax.text(0.97, 0.95, note, transform=ax.transAxes, ha="right", va="top",
-                fontsize=6.8, color=INK_2, linespacing=1.35)
+        ax.text(0.97 if note_side == "right" else 0.03, 0.95, note, transform=ax.transAxes,
+                ha=note_side, va="top", fontsize=6.8, color=INK_2, linespacing=1.35)
         ax.set_title("all OMAT24 train, pooled" if sub == ALL else sub,
                      fontsize=9, color=INK, loc="left", pad=4)
         if log_x:
@@ -666,7 +666,7 @@ def reduce_partitions(args: argparse.Namespace) -> None:
     small_multiples(**common, channel="s_hydro", stem="stress_hydrostatic",
                     title="OMAT24 mean normal stress tr(sigma)/3 by subdataset (sign as stored)",
                     xlabel="tr(sigma)/3 (GPa)", ylabel="density (1/GPa)", lo=s_lo, hi=s_hi, log_y=True,
-                    note_stats=("mean", "std", "min", "max"))
+                    note_stats=("mean", "std", "min", "max"), note_side="left")
     small_multiples(**common, channel="s_vonmises", stem="stress_von_mises",
                     title="OMAT24 von Mises stress by subdataset", xlabel="von Mises stress (GPa)",
                     ylabel="density per decade", lo=1e-3,
